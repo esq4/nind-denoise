@@ -208,10 +208,13 @@ if __name__ == '__main__':
             tcrop[:,-args.overlap:,:] = tcrop[:,-args.overlap:,:].div(2)
         return tcrop
 
-    if args.cuda_device >= 0:
-        torch.cuda.set_device(args.cuda_device)
-        torch.backends.cudnn.benchmark = True
-        torch.cuda.manual_seed(123)
+        if args.cuda_device >= 0:
+            if torch.cuda.is_available():
+                torch.cuda.set_device(args.cuda_device)
+                torch.backends.cudnn.benchmark = True
+                torch.cuda.manual_seed(123)
+            else:
+                print("warning: PyTorch is not installed with CUDA. Defaulting to CPU.")
     torch.manual_seed(123)
     device = pt_helpers.get_device(args.cuda_device)
     if args.output is None:
@@ -242,7 +245,8 @@ if __name__ == '__main__':
             sys.exit(f'denoise_image.py: {ybatch.shape=}, {math.prod(ybatch.shape)=} > {args.max_subpixels=} for {args.input=}; aborting')
         ybatch = ybatch.to(device)
         xbatch = model(ybatch)
-        torch.cuda.synchronize()
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         for i in range(ybatch.size(0)):
             ud = usefuldims[i]
             # pytorch represents images as [channels, height, width]
