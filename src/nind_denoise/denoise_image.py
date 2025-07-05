@@ -10,7 +10,7 @@ TODO 16-bit input! (replace PIL with numpy)
 egrun:
     whole image (lots of memory):
 
-    python denoise_image.py --input img.tif --model_path ../../models/nind_denoise/2021-05-23T10\:16_nn_train.py_--config_configs-train_conf_unet.yaml_--debug_options_output_val_images_keep_all_output_images_--test_interval_0_--epochs_1000_--reduce_lr_factor_0.95_--patience_3/generator_250.pt --network UNet --cs 660 --ucs 470
+    python denoise_image.py --input img.tif --model_path ../../models/nind_denoise/2021-05-23T10:16_nn_train.py_--config_configs-train_conf_unet.yaml_--debug_options_output_val_images_keep_all_output_images_--test_interval_0_--epochs_1000_--reduce_lr_factor_0.95_--patience_3/generator_250.pt --network UNet --cs 660 --ucs 470
     cropping:
         TODO
 '''
@@ -42,6 +42,12 @@ from common.libs import np_imgops
 CS_UNET, UCS_UNET = 440, 320
 CS_UTNET, UCS_UTNET = 504, 480
 CS_UNK, UCS_UNK = 512, 448
+
+
+# supress SourceChangeWarning
+import warnings
+from torch.serialization import SourceChangeWarning
+warnings.filterwarnings("ignore", category=SourceChangeWarning)
 
 
 def make_output_fpath(input_fpath, model_fpath):

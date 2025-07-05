@@ -1,10 +1,11 @@
 import torch
 import cv2
 import tifffile
+import imageio
 from PIL import Image
 import torchvision
 import numpy as np
-import sys
+import sys, os
 sys.path.append('..')
 from common.libs import np_imgops
 from common.libs import pt_losses
@@ -27,8 +28,8 @@ def tensor_to_imgfile(tensor, path):
             nptensor = cv2.cvtColor(nptensor, cv2.COLOR_RGB2BGR)
             cv2.imwrite(path, nptensor)
         elif path[-4:].lower() in ['tiff']:  # 32-bit
-            nptensor = tensor.cpu().numpy()
-            tifffile.imsave(path, nptensor)
+            nptensor = tensor.cpu().numpy().astype(np.float32).transpose(1,2,0)
+            imageio.imwrite(path, nptensor)
         else:
             raise NotImplementedError(f'Extension in {path}')
     elif tensor.dtype == torch.uint8:

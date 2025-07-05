@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 """
 @author: Huy Hoang
@@ -13,23 +13,42 @@ from argparse import ArgumentParser
 import configparser
 from bs4 import BeautifulSoup
 import copy
+import exiv2
 
-notouch_ops = [
+
+first_ops = [
+  'channelmixerrgb',
+  'colorin',
+  'colorout',
+  'demosaic',
+  'flip',
+  'gamma',
+  'highlights',
+  'hotpixels',
+  'rawprepare',
+  'temperature',
 ]
 
 # list of operations to be moved to second stage
-post_ops = [
+second_ops = [
   'ashift',         # rotate & perspective, NOTE: autocrop doesn't auto-apply via non-interactive mode
   'bilat',          # local contrast
   'blurs',
   'borders',        # framing
   'colorbalancergb',
+  'colorin',
+  'colorout',
   'crop',
   'cacorrectrgb',   # chromatic aberrations
+  # 'channelmixerrgb',
   'clahe',          # local contrast
   'denoiseprofile',
   'diffuse',        # diffuse or sharpen
   'dither',         # dithering
+  'exposure',
+  'filmicrgb',
+  'flip',
+  'gamma',
   'hazeremoval',
   'invert',
   'lens',           # lens correction
@@ -39,7 +58,8 @@ post_ops = [
   'lut3d',
   'monochrome',
   'nlmeans',        # astro photo denoise
-  'rawdenoise',
+  # 'rawdenoise',
+  'rawprepare',
   'rgbcurve',
   'rgblevels',
   'rotatepixels',
@@ -49,24 +69,31 @@ post_ops = [
   'soften',
   'splittoning',
   'spots',          # spot removal
+  # 'temperature',
   'tonecurve',
   'tonemap',        # tone-mapping
+  'toneequal',
   'velvia',
   'vibrance',
   'vignette',
   'watermark',
   'zonesystem',
-
-  # the below should belong to 1st stage
-  # 'exposure',
-  # 'filmicrgb',     # it needs full data from original file
-  # 'flip',          # orientation
-  # 'gamma',
-  # 'retouch',
-  # 'sigmoid',       # it needs full data from original file
-  # 'toneequal',     # tone-equalizer seems to depend on exposure to align the histogram
 ]
 
+second_overrides = {
+  'colorin': {
+    'darktable:num':"0",
+    'darktable:operation':"colorin",
+    'darktable:enabled':"1",
+    'darktable:modversion':"7",
+    'darktable:params':"gz48eJxjZBgFowABWAbaAaNgwAEAEDgABg':':",
+    'darktable:multi_name':"",
+    'darktable:multi_name_hand_edited':"0",
+    'darktable:multi_priority':"0",
+    'darktable:blendop_version':"14",
+    'darktable:blendop_params':"gz11eJxjYIAACQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dcF/IADRAGpyHQU':"
+  }
+}
 
 
 """
@@ -112,17 +139,27 @@ def main(argv):
     config.read(config_filename)
 
     cmd_darktable     = config['command']['darktable']
-    cmd_nind_denoise  = config['command']['nind_denoise']
-    cmd_exiftool      = config['command']['exiftool']
+    cmd_nind_denoise  = config['command']['nind_denoise'] + ' ' + config['command']['nind_denoise_params']
     cmd_gmic          = config['command']['gmic']
 
+    valid_extensions = ['RAF', 'NEF', 'ARW', 'CR3']
 
     # main loop: iterate through all provided images
     for filename in args.filenames:
+      # skip invalid/non-existing file
+      if not os.path.exists(filename):
+        print("Non-existing file: ", filename, ", skipping.")
+        continue
+
       print("\n")
 
       # determine a new filename
       basename, ext = os.path.splitext(filename)
+
+      # skip un-supported files
+      if ext.lstrip('.').upper() not in valid_extensions:
+        print("Non-RAW file: ", filename, ", skipping.")
+        continue
 
       if args.extension != '':
           ext = '.' + args.extension.lstrip('.')
@@ -161,19 +198,29 @@ def main(argv):
       history_org = copy.copy(history)
       history_ops = history.find_all('rdf:li')
 
+      # sort history ops
+      history_ops.sort(key=lambda tag: int(tag['darktable:num']))
 
-      # disable the post-ops then save to first stage
+      # remove ops not listed in first_ops
       if args.debug:
         print("\nPrepping first stage ...")
 
       for op in reversed(history_ops):
-        if op['darktable:operation'] in post_ops:
-          op['darktable:enabled'] = "0"
+        if op['darktable:operation'] not in first_ops:
+          # op['darktable:enabled'] = "0"
+          op.extract()    # remove the op completely
+
 
           if args.debug:
-            print("--disabled: ", op['darktable:operation'])
-        elif args.debug:
-          print("default:    ", op['darktable:operation'])
+            print("--removed: ", op['darktable:operation'])
+
+        else:
+          # for "flip": don't remove, only disable
+          if op['darktable:operation'] == 'flip':
+            op['darktable:enabled'] = "0"
+
+          if args.debug:
+            print("default:    ", op['darktable:operation'])
 
       with open(filename+'.s1.xmp', 'w') as first_stage:
         first_stage.write(sidecar.prettify())
@@ -183,20 +230,29 @@ def main(argv):
       history.replace_with(history_org)
       history_ops = history_org.find_all('rdf:li')
 
-      # enable only post-ops then save to second stage
+
+      # remove ops not listed in second_ops
       if args.debug:
         print("\nPrepping second stage ...")
 
       for op in reversed(history_ops):
-        if op['darktable:operation'] in post_ops:
+        if op['darktable:operation'] not in second_ops:
+          op.extract()    # remove the op completely
+
+          if args.debug:
+            print("--removed: ", op['darktable:operation'])
+        else:
+          # replace with override
+          if op['darktable:operation'] in second_overrides:
+            for key, val in second_overrides[op['darktable:operation']].items():
+              op[key] = val
+
           if args.debug:
             print("default:    ", op['darktable:operation'], op['darktable:enabled'])
-        else:
-          if op['darktable:operation'] not in notouch_ops:
-            op.extract()    # remove the op completely
 
-            if args.debug:
-              print("--removed: ", op['darktable:operation'])
+      # set iop_order_version to 5 (for JPEG)
+      description = sidecar.find('rdf:Description')
+      iop_order_version = description['darktable:iop_order_version'] = '5'
 
       with open(filename+'.s2.xmp', 'w') as second_stage:
           second_stage.write(sidecar.prettify())
@@ -209,7 +265,8 @@ def main(argv):
         os.remove(s1_filename)
 
       cmd = cmd_darktable + ' "' + filename + '" "' + filename + '.s1.xmp" "' + s1_filename + '" ' + \
-            '--apply-custom-presets 0 --core --conf plugins/imageio/format/tiff/bpp=32 '
+            '--apply-custom-presets 0 ' + \
+            '--core --conf plugins/imageio/format/tiff/bpp=32 '
 
       if args.debug:
         print('First-stage cmd: ', cmd)
@@ -222,6 +279,7 @@ def main(argv):
 
 
       # call nind-denoise
+      # 32-bit TIFF (instead of 16-bit) is needed to retain highlight reconstruction data from stage 1
       denoised_filename = outdir + '/' + basename + '_s1_denoised.tiff' # for nind-denoise: tif = 16-bit, tiff = 32-bit
 
       if os.path.exists(denoised_filename):
@@ -240,11 +298,12 @@ def main(argv):
 
 
       # copy exif from RAW file to denoised image
-      cmd = cmd_exiftool + ' -writeMode cg -TagsFromFile "' + filename + '" -all:all -overwrite_original "' + denoised_filename + '"'
-      if args.debug:
-        print("exiftool cmd: ", cmd)
+      exiv_src = exiv2.ImageFactory.open(filename)
+      exiv_src.readMetadata()
+      exiv_dst = exiv2.ImageFactory.open(denoised_filename)
+      exiv_dst.setExifData(exiv_src.exifData())
+      exiv_dst.writeMetadata()
 
-      subprocess.call(cmd, shell=True)
       print('Copied EXIF from ' + filename + ' to ' + denoised_filename)
 
 
@@ -284,13 +343,13 @@ def main(argv):
 
 
       # copy exif
-      cmd = cmd_exiftool + ' -writeMode cg -TagsFromFile "' + s2_filename + '" -all:all -overwrite_original "' + out_filename + '"'
+      exiv_src = exiv2.ImageFactory.open(s1_filename)
+      exiv_src.readMetadata()
+      exiv_dst = exiv2.ImageFactory.open(out_filename)
+      exiv_dst.setExifData(exiv_src.exifData())
+      exiv_dst.writeMetadata()
 
-      if args.debug:
-        print("exiftool cmd: ", cmd)
-
-      subprocess.call(cmd, shell=True)
-      print('Copied EXIF to:', out_filename)
+      print('Copied EXIF from', s1_filename, 'to', out_filename)
 
 
       # clean up
