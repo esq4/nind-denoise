@@ -15,18 +15,22 @@ from bs4 import BeautifulSoup
 import copy
 import exiv2
 
+# @TODO: add all available modules
 
+# list of operations to stay in first stage
 first_ops = [
   'channelmixerrgb',
   'colorin',
   'colorout',
   'demosaic',
+  #'exposure',
   'flip',
   'gamma',
   'highlights',
   'hotpixels',
   'rawprepare',
   'temperature',
+  #'toneequal',
 ]
 
 # list of operations to be moved to second stage
@@ -105,6 +109,8 @@ def main(argv):
     parser = ArgumentParser()
     parser.add_argument("filenames", metavar="FILE", nargs='*',
                         help="source image", )
+    parser.add_argument("-n", "--nightmode", dest="nightmode", type=bool, action=argparse.BooleanOptionalAction,
+                        help="nightmode, normalize brightness (exposure, tonequal) before denoise, default: no")
     parser.add_argument("-r", "--rating", dest="rating", default='012345',
                         help="darktable rating, specified as [012345], default: 012345 (all)")
     parser.add_argument("-d", "--debug", dest="debug", type=bool, action=argparse.BooleanOptionalAction,
@@ -143,6 +149,15 @@ def main(argv):
     cmd_gmic          = config['command']['gmic']
 
     valid_extensions = ['RAF', 'NEF', 'ARW', 'CR3']
+
+    # update the first and second ops for night mode
+    if args.nightmode:
+      print("\nUpdating ops for nightmode ...")
+      nightmode_ops = ['exposure', 'toneequal']
+      first_ops.extend(nightmode_ops)
+
+      for op in nightmode_ops:
+        second_ops.remove(op)
 
     # main loop: iterate through all provided images
     for filename in args.filenames:
