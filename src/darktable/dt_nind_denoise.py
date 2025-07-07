@@ -90,12 +90,12 @@ second_overrides = {
     'darktable:operation':"colorin",
     'darktable:enabled':"1",
     'darktable:modversion':"7",
-    'darktable:params':"gz48eJxjZBgFowABWAbaAaNgwAEAEDgABg':':",
+    'darktable:params':"gz48eJxjZBgFowABWAbaAaNgwAEAEDgABg==",
     'darktable:multi_name':"",
     'darktable:multi_name_hand_edited':"0",
     'darktable:multi_priority':"0",
     'darktable:blendop_version':"14",
-    'darktable:blendop_params':"gz11eJxjYIAACQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dcF/IADRAGpyHQU':"
+    'darktable:blendop_params':"gz11eJxjYIAACQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dcF/IADRAGpyHQU="
   }
 }
 
@@ -148,7 +148,7 @@ def main(argv):
     cmd_nind_denoise  = config['command']['nind_denoise'] + ' ' + config['command']['nind_denoise_params']
     cmd_gmic          = config['command']['gmic']
 
-    valid_extensions = ['RAF', 'NEF', 'ARW', 'CR3']
+    valid_extensions = ['RAF', 'NEF', 'ARW', 'CR3', 'RW2']
 
     # update the first and second ops for night mode
     if args.nightmode:
@@ -332,6 +332,7 @@ def main(argv):
         s2_filename = out_filename
 
       cmd = cmd_darktable + ' "' + denoised_filename + '" "' + filename + '.s2.xmp" "' + s2_filename + '" ' + \
+            '--icc-intent PERCEPTUAL --icc-type SRGB ' + \
             '--apply-custom-presets 0 --core --conf plugins/imageio/format/tiff/bpp=16 '
 
       if args.debug:
