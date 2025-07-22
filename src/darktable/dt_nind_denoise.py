@@ -148,7 +148,7 @@ def main(argv):
     cmd_nind_denoise  = config['command']['nind_denoise'] + ' ' + config['command']['nind_denoise_params']
     cmd_gmic          = config['command']['gmic']
 
-    valid_extensions = ['RAF', 'NEF', 'ARW', 'CR3', 'RW2']
+    valid_extensions = ['3FR','ARW','SR2','SRF','CR2','CR3','CRW','DNG','ERF','FFF','MRW','NEF','NRW','ORF','PEF','RAF','RW2']
 
     # update the first and second ops for night mode
     if args.nightmode:
