@@ -145,8 +145,16 @@ def main(argv):
 
     cmd_darktable     = config['command']['darktable']
     cmd_nind_denoise  = config['command']['nind_denoise'] + ' ' + config['command']['nind_denoise_params']
-    cmd_gmic          = config['command']['gmic']
 
+    # gmic is optional
+    cmd_gmic          = None
+    if 'gmic' in config['command'] and config['command']['gmic'].strip() != '':
+      cmd_gmic        = config['command']['gmic']
+    else:
+      print("\nGMIC is not provided, disabled RL-deblur")
+      args.rldeblur = False
+
+    # define RAW extensions
     valid_extensions = ['3FR','ARW','SR2','SRF','CR2','CR3','CRW','DNG','ERF','FFF','MRW','NEF','NRW','ORF','PEF','RAF','RW2']
 
     # update the first and second ops for night mode
