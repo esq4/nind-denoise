@@ -3,8 +3,7 @@
 """
 @author: Huy Hoang
 
-Split the darktable export into two stages to inject nind-denoise into the
-history stack
+Split the darktable export into two stages to inject nind-denoise into the history stack
 
 """
 
@@ -15,7 +14,7 @@ from bs4 import BeautifulSoup
 import copy
 import exiv2
 
-# @TODO: add all available modules
+# @TODO: test and add all available modules, default to keep unlisted ops in 2nd-stage
 
 # list of operations to stay in first stage
 first_ops = [
@@ -180,10 +179,10 @@ def main(argv):
           ext = '.' + args.extension.lstrip('.')
 
       i = 0
-      out_filename = outdir + '/' + basename + ext
+      out_filename = os.path.join(outdir, basename + ext)
       while (os.path.exists(out_filename)):
           i = i + 1
-          out_filename = outdir + '/' + basename + '_' + str(i) + ext
+          out_filename = os.path.join(outdir, basename + '_' + str(i) + ext)
 
       # read the XMP
       xmp = filename + '.xmp'
@@ -247,11 +246,16 @@ def main(argv):
 
 
       # remove ops not listed in second_ops
+      # unknown ops NOT in first_ops AND NOT in second_ops, default to keeping them
+      # in 1    : N   N   Y   Y
+      # in 2    : N   Y   N   Y
+      # action  : K   K   R   K
+
       if args.debug:
         print("\nPrepping second stage ...")
 
       for op in reversed(history_ops):
-        if op['darktable:operation'] not in second_ops:
+        if op['darktable:operation'] not in second_ops and op['darktable:operation'] in first_ops:
           op.extract()    # remove the op completely
 
           if args.debug:
@@ -265,6 +269,7 @@ def main(argv):
           if args.debug:
             print("default:    ", op['darktable:operation'], op['darktable:enabled'])
 
+
       # set iop_order_version to 5 (for JPEG)
       description = sidecar.find('rdf:Description')
       iop_order_version = description['darktable:iop_order_version'] = '5'
@@ -274,7 +279,7 @@ def main(argv):
 
 
       # invoke darktable-cli with first stage
-      s1_filename = outdir + '/' + basename + '_s1.tif'
+      s1_filename = os.path.join(outdir, basename + '_s1.tif')
 
       if os.path.exists(s1_filename):
         os.remove(s1_filename)
@@ -295,7 +300,8 @@ def main(argv):
 
       # call nind-denoise
       # 32-bit TIFF (instead of 16-bit) is needed to retain highlight reconstruction data from stage 1
-      denoised_filename = outdir + '/' + basename + '_s1_denoised.tiff' # for nind-denoise: tif = 16-bit, tiff = 32-bit
+      # for modified nind-denoise: tif = 16-bit, tiff = 32-bit
+      denoised_filename = os.path.join(outdir, basename + '_s1_denoised.tiff')
 
       if os.path.exists(denoised_filename):
         os.remove(denoised_filename)
@@ -324,7 +330,7 @@ def main(argv):
 
       # invoke darktable-cli with second stage
       if args.rldeblur:
-        s2_filename = outdir + '/' + basename + '_s2.tif'
+        s2_filename = os.path.join(outdir, basename + '_s2.tif')
 
         if os.path.exists(s2_filename):
           os.remove(s2_filename)
@@ -381,6 +387,5 @@ def main(argv):
 
 
 # =================
-# start the program
 if __name__ == "__main__":
    main(sys.argv[1:])
