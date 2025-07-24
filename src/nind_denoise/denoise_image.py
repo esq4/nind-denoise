@@ -22,6 +22,7 @@ import torch
 import math
 from PIL import Image, ImageOps
 import cv2
+import exiv2
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import time
@@ -280,7 +281,11 @@ if __name__ == '__main__':
     if args.output[:-4] == '.jpg' and args.exif_method == 'piexif':
         piexif.transplant(args.input, args.output)
     elif args.exif_method != 'noexif':
-        cmd = ['exiftool', '-TagsFromFile', args.input, args.output, '-all', '-icc_profile', '-overwrite_original']
-        subprocess.run(cmd)
+        exiv_src = exiv2.ImageFactory.open(args.input)
+        exiv_src.readMetadata()
+        exiv_dst = exiv2.ImageFactory.open(args.output)
+        exiv_dst.setExifData(exiv_src.exifData())
+        exiv_dst.writeMetadata()
+
     print(f'Wrote denoised image to {args.output}')
     print('Elapsed time: '+str(time.time()-start_time)+' seconds')
