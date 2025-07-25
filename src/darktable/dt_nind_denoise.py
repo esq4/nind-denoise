@@ -143,18 +143,24 @@ def main(argv):
     config = configparser.ConfigParser()
     config.read(config_filename)
 
-    cmd_darktable     = config['command']['darktable']
+    cmd_darktable     = config['command']['darktable'].strip()
     cmd_nind_denoise  = config['command']['nind_denoise'] + ' ' + config['command']['nind_denoise_params']
 
-    # verify darktable-cli is available
+    # verify darktable-cli is valid
     if not os.path.exists(cmd_darktable):
-      print("\nError: darktable-cli does not exist. Please correct the path in dt_nind_denoise.ini")
+      print("\nError: darktable-cli (" + cmd_darktable + ") does not exist. Please correct the path in dt_nind_denoise.ini")
       exit(1)
 
     # gmic is optional
-    cmd_gmic          = None
+    cmd_gmic = None
     if 'gmic' in config['command'] and config['command']['gmic'].strip() != '':
-      cmd_gmic        = config['command']['gmic']
+      cmd_gmic = config['command']['gmic'].strip()
+
+      # verify gmic is valid
+      if not os.path.exists(cmd_gmic):
+        print("\nError: gmic (" + cmd_gmic+ ") does not exist, disabled RL-deblur")
+        args.rldeblur = False
+
     else:
       print("\nGMIC is not provided, disabled RL-deblur")
       args.rldeblur = False
