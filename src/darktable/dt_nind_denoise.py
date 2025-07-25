@@ -134,7 +134,7 @@ def main(argv):
 
 
     # read config
-    config_filename = os.path.dirname(__file__) + '/' + 'dt_nind_denoise.ini'
+    config_filename = os.path.join(os.path.dirname(__file__), 'dt_nind_denoise.ini')
 
     if not os.path.exists(config_filename):
       print('Error reading ', config_filename)
@@ -145,6 +145,11 @@ def main(argv):
 
     cmd_darktable     = config['command']['darktable']
     cmd_nind_denoise  = config['command']['nind_denoise'] + ' ' + config['command']['nind_denoise_params']
+
+    # verify darktable-cli is available
+    if not os.path.exists(cmd_darktable):
+      print("\nError: darktable-cli does not exist. Please correct the path in dt_nind_denoise.ini")
+      exit(1)
 
     # gmic is optional
     cmd_gmic          = None
