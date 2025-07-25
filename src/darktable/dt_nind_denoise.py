@@ -7,7 +7,7 @@ Split the darktable export into two stages to inject nind-denoise into the histo
 
 """
 
-import os, sys, subprocess, argparse
+import os, sys, subprocess, argparse, shutil
 from argparse import ArgumentParser
 import configparser
 from bs4 import BeautifulSoup
@@ -192,10 +192,10 @@ def main(argv):
           ext = '.' + args.extension.lstrip('.')
 
       i = 0
-      out_filename = os.path.join(outdir, basename + ext)
-      while (os.path.exists(out_filename)):
+      out_filename = basename + ext
+      while (os.path.exists(os.path.join(outdir, out_filename))):
           i = i + 1
-          out_filename = os.path.join(outdir, basename + '_' + str(i) + ext)
+          out_filename = basename + '_' + str(i) + ext
 
       # read the XMP
       xmp = filename + '.xmp'
@@ -291,8 +291,11 @@ def main(argv):
           second_stage.write(sidecar.prettify())
 
 
-      # invoke darktable-cli with first stage
-      s1_filename = os.path.join(outdir, basename + '_s1.tif')
+      #========== invoke darktable-cli with first stage ==========
+
+      # https://github.com/darktable-org/darktable/issues/12958
+      # leave the intermediate tiff files in the current folder
+      s1_filename = basename + '_s1.tif'
 
       if os.path.exists(s1_filename):
         os.remove(s1_filename)
@@ -311,10 +314,10 @@ def main(argv):
         continue
 
 
-      # call nind-denoise
+      #========== call nind-denoise ==========
       # 32-bit TIFF (instead of 16-bit) is needed to retain highlight reconstruction data from stage 1
       # for modified nind-denoise: tif = 16-bit, tiff = 32-bit
-      denoised_filename = os.path.join(outdir, basename + '_s1_denoised.tiff')
+      denoised_filename = basename + '_s1_denoised.tiff'
 
       if os.path.exists(denoised_filename):
         os.remove(denoised_filename)
@@ -326,7 +329,7 @@ def main(argv):
 
       subprocess.call(cmd, shell=True)
 
-      if not os.path.exists(s1_filename):
+      if not os.path.exists(denoised_filename):
         print("Error: denoised image not found: ", denoised_filename)
         continue
 
@@ -341,9 +344,10 @@ def main(argv):
       print('Copied EXIF from ' + filename + ' to ' + denoised_filename)
 
 
-      # invoke darktable-cli with second stage
+      #========== invoke darktable-cli with second stage ==========
+
       if args.rldeblur:
-        s2_filename = os.path.join(outdir, basename + '_s2.tif')
+        s2_filename = basename + '_s2.tif'
 
         if os.path.exists(s2_filename):
           os.remove(s2_filename)
@@ -362,10 +366,11 @@ def main(argv):
 
       # call ImageMagick RL-deblur
       if args.rldeblur:
-        tmp_rl_filename = out_filename.replace(' ', '_')
+        tmp_rl_filename = out_filename.replace(' ', '_')  # gmic can't handle spaces
 
-        cmd = cmd_gmic + ' "' + s2_filename + '" -deblur_richardsonlucy ' + str(args.sigma) + ',' + str(args.iteration) + ',1' + \
-              '  -/ 256 cut 0,255 round -o "' + tmp_rl_filename + ',' + str(args.quality) + '"'
+        cmd = cmd_gmic + ' "' + s2_filename + '" ' + \
+              '-deblur_richardsonlucy ' + str(args.sigma) + ',' + str(args.iteration) + ',1 ' + \
+              '-/ 256 cut 0,255 round -o "' + tmp_rl_filename + ',' + str(args.quality) + '"'
 
         if args.debug:
           print('RL-deblur cmd: ', cmd)
@@ -386,8 +391,12 @@ def main(argv):
 
       print('Copied EXIF from', s1_filename, 'to', out_filename)
 
+      # move output file into outdir
+      shutil.move(out_filename, os.path.join(outdir, out_filename))
+      print('Moved final output to ' + os.path.join(outdir, out_filename))
 
-      # clean up
+
+      #========== clean up ==========
       if not args.debug:
         os.remove(s1_filename)
         os.remove(denoised_filename)
