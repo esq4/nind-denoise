@@ -11,6 +11,7 @@ import os, sys, subprocess, argparse, shutil
 from argparse import ArgumentParser
 import configparser
 from bs4 import BeautifulSoup
+from pathlib import Path
 import copy
 import exiv2
 
@@ -147,9 +148,9 @@ def main(argv):
     cmd_nind_denoise  = config['command']['nind_denoise'] + ' ' + config['command']['nind_denoise_params']
 
     # verify darktable-cli is valid
-    if not os.path.exists(cmd_darktable):
-      print("\nError: darktable-cli (" + cmd_darktable + ") does not exist. Please correct the path in dt_nind_denoise.ini")
-      exit(1)
+    if not Path(cmd_darktable).exists():
+      print("\nError: darktable-cli (" + cmd_darktable + ") does not exist or not accessible. Please correct the path in dt_nind_denoise.ini")
+      # exit(1)
 
     # gmic is optional
     cmd_gmic = None
