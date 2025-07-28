@@ -296,7 +296,8 @@ def main(argv):
       description['darktable:iop_order_version'] = '5'
 
       # bring colorin right next to demosaic (early in the stack)
-      description['darktable:iop_order_list'] = description['darktable:iop_order_list'].replace('colorin,0,', '').replace('demosaic,0', 'demosaic,0,colorin,0')
+      if description.has_attr("darktable:iop_order_list"):
+        description['darktable:iop_order_list'] = description['darktable:iop_order_list'].replace('colorin,0,', '').replace('demosaic,0', 'demosaic,0,colorin,0')
 
       with open(filename+'.s2.xmp', 'w') as second_stage:
           second_stage.write(sidecar.prettify())
