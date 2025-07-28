@@ -28,6 +28,7 @@ first_ops = [
   'gamma',
   'highlights',
   'hotpixels',
+  'mask_manager',
   'rawprepare',
   'temperature',
   #'toneequal',
@@ -60,10 +61,11 @@ second_ops = [
   'liquify',
   'lowlight',       # lowlight vision
   'lut3d',
+  'mask_manager',
   'monochrome',
   'nlmeans',        # astro photo denoise
   # 'rawdenoise',
-  'rawprepare',
+  # 'rawprepare',
   'rgbcurve',
   'rgblevels',
   'rotatepixels',
@@ -264,7 +266,6 @@ def main(argv):
       history.replace_with(history_org)
       history_ops = history_org.find_all('rdf:li')
 
-
       # remove ops not listed in second_ops
       # unknown ops NOT in first_ops AND NOT in second_ops, default to keeping them
       # in 1    : N   N   Y   Y
@@ -292,7 +293,10 @@ def main(argv):
 
       # set iop_order_version to 5 (for JPEG)
       description = sidecar.find('rdf:Description')
-      iop_order_version = description['darktable:iop_order_version'] = '5'
+      description['darktable:iop_order_version'] = '5'
+
+      # bring colorin right next to demosaic (early in the stack)
+      description['darktable:iop_order_list'] = description['darktable:iop_order_list'].replace('colorin,0,', '').replace('demosaic,0', 'demosaic,0,colorin,0')
 
       with open(filename+'.s2.xmp', 'w') as second_stage:
           second_stage.write(sidecar.prettify())
