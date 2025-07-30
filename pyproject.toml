@@ -43,13 +43,13 @@ dependencies = [
     "stack-data==0.6.3",
     "sympy==1.13.3",
     "tifffile==2025.6.11",
-    "torch==2.7.0+cpu",
-    "torchaudio==2.7.0+cpu",
-    "torchvision==0.22.0+cpu",
+    "torch==2.7.1",
+    "torchaudio==2.7.1",
+    "torchvision==0.22.1",
     "traitlets==5.14.3",
     "typing-extensions==4.12.2",
     "wcwidth==0.2.13",
 ]
 
 [[tool.uv.index]]
-url = "https://download.pytorch.org/whl/cpu"
+url = "https://download.pytorch.org/whl/xpu"

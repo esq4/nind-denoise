@@ -58,13 +58,13 @@ def get_device(device_n=None):
             return torch.device('cpu')
         device_n = int(device_n)
     if device_n is None:
-        if torch.cuda.is_available():
-            return torch.device("cuda")
+        if torch.xpu.is_available():
+            return torch.device("xpu")
         else:
-            print('get_device: cuda not available; defaulting to cpu')
+            print('get_device: xpu not available; defaulting to cpu')
             return torch.device("cpu")
-    elif torch.cuda.is_available() and device_n >= 0:
-        return torch.device("cuda:%i" % device_n)
+    elif torch.xpu.is_available() and device_n >= 0:
+        return torch.device("xpu:%i" % device_n)
     elif device_n >= 0:
-        print('get_device: cuda not available')
+        print('get_device: xpu not available')
     return torch.device('cpu')

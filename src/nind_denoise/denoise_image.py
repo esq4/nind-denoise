@@ -191,7 +191,7 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output', type=str, help='Output file with extension (default: model_dpath/test/denoised_images/fn.tif)')
     parser.add_argument('-b', '--batch_size', type=int, default=1)  # TODO >1 is broken
     parser.add_argument('--debug', action='store_true', help='Debug (store all intermediate crops in ./dbg, display useful messages)')
-    parser.add_argument('--cuda_device', '--device', default=0, type=int, help='Device number (default: 0, typically 0-3]], -1 for CPU)')
+    parser.add_argument('--xpu_device', '--device', default=0, type=int, help='Device number (default: 0, typically 0-3]], -1 for CPU)')
     parser.add_argument('--exif_method', default='piexif', type=str, help='How is exif data copied over? (piexif, exiftool, noexif)')
     parser.add_argument('--g_network', '--network', '--arch', type=str, help='Generator network (typically UNet or UtNet)')
     parser.add_argument('--model_path', help='Generator pretrained model path (.pth for model, .pt for dictionary), required')
@@ -216,15 +216,15 @@ if __name__ == '__main__':
             tcrop[:,-args.overlap:,:] = tcrop[:,-args.overlap:,:].div(2)
         return tcrop
 
-        if args.cuda_device >= 0:
-            if torch.cuda.is_available():
-                torch.cuda.set_device(args.cuda_device)
+        if args.xpu_device >= 0:
+            if torch.xpu.is_available():
+                torch.xpu.set_device(args.xpu_device)
                 torch.backends.cudnn.benchmark = True
-                torch.cuda.manual_seed(123)
+                torch.xpu.manual_seed(123)
             else:
-                print("warning: PyTorch is not installed with CUDA. Defaulting to CPU.")
+                print("warning: PyTorch is not installed with xpu. Defaulting to CPU.")
     torch.manual_seed(123)
-    device = pt_helpers.get_device(args.cuda_device)
+    device = pt_helpers.get_device(args.xpu_device)
     if args.output is None:
         args.output = make_output_fpath(args.input, args.model_path)
 
@@ -253,8 +253,8 @@ if __name__ == '__main__':
             sys.exit(f'denoise_image.py: {ybatch.shape=}, {math.prod(ybatch.shape)=} > {args.max_subpixels=} for {args.input=}; aborting')
         ybatch = ybatch.to(device)
         xbatch = model(ybatch)
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
+        if torch.xpu.is_available():
+            torch.xpu.synchronize()
         for i in range(ybatch.size(0)):
             ud = usefuldims[i]
             # pytorch represents images as [channels, height, width]

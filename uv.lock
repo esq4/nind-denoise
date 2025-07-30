@@ -1,6 +1,11 @@
 version = 1
 revision = 2
 requires-python = ">=3.13"
+resolution-markers = [
+    "sys_platform == 'linux'",
+    "sys_platform == 'win32'",
+    "sys_platform != 'linux' and sys_platform != 'win32'",
+]
 
 [[package]]
 name = "asttokens"
@@ -39,7 +44,7 @@ wheels = [
 [[package]]
 name = "colorama"
 version = "0.4.6"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6" },
 ]
@@ -86,7 +91,7 @@ wheels = [
 [[package]]
 name = "filelock"
 version = "3.13.1"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/filelock-3.13.1-py3-none-any.whl", hash = "sha256:57dbda9b35157b05fb3e58ee91448612eb674172fab98ee235ccb0b5bee19a1c" },
 ]
@@ -94,7 +99,7 @@ wheels = [
 [[package]]
 name = "fsspec"
 version = "2024.6.1"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/fsspec-2024.6.1-py3-none-any.whl", hash = "sha256:3cb443f8bcd2efb31295a5b9fdb02aee81d8452c80d28f97a6d0959e6cee101e" },
 ]
@@ -110,6 +115,119 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0c/47/57e897fb7094afb2d26e8b2e4af9a45c7cf1a405acdeeca001fdf2c98501/imageio-2.37.0.tar.gz", hash = "sha256:71b57b3669666272c818497aebba2b4c5f20d5b37c81720e5e1a56d59c492996", size = 389963, upload-time = "2025-01-20T02:42:37.089Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/bd/b394387b598ed84d8d0fa90611a90bee0adc2021820ad5729f7ced74a8e2/imageio-2.37.0-py3-none-any.whl", hash = "sha256:11efa15b87bc7871b61590326b2d635439acc321cf7f8ce996f812543ce10eed", size = 315796, upload-time = "2025-01-20T02:42:34.931Z" },
+]
+
+[[package]]
+name = "intel-cmplr-lib-rt"
+version = "2025.0.4"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+resolution-markers = [
+    "sys_platform == 'linux'",
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_cmplr_lib_rt-2025.0.4-py2.py3-none-manylinux_2_28_x86_64.whl" },
+]
+
+[[package]]
+name = "intel-cmplr-lib-rt"
+version = "2025.0.5"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_cmplr_lib_rt-2025.0.5-py2.py3-none-win_amd64.whl" },
+]
+
+[[package]]
+name = "intel-cmplr-lib-ur"
+version = "2025.0.4"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+resolution-markers = [
+    "sys_platform == 'linux'",
+]
+dependencies = [
+    { name = "umf", marker = "sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_cmplr_lib_ur-2025.0.4-py2.py3-none-manylinux_2_28_x86_64.whl" },
+]
+
+[[package]]
+name = "intel-cmplr-lib-ur"
+version = "2025.0.5"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "umf", marker = "sys_platform == 'win32'" },
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_cmplr_lib_ur-2025.0.5-py2.py3-none-win_amd64.whl" },
+]
+
+[[package]]
+name = "intel-cmplr-lic-rt"
+version = "2025.0.4"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+resolution-markers = [
+    "sys_platform == 'linux'",
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_cmplr_lic_rt-2025.0.4-py2.py3-none-manylinux_2_28_x86_64.whl" },
+]
+
+[[package]]
+name = "intel-cmplr-lic-rt"
+version = "2025.0.5"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_cmplr_lic_rt-2025.0.5-py2.py3-none-win_amd64.whl" },
+]
+
+[[package]]
+name = "intel-pti"
+version = "0.10.1"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_pti-0.10.1-py2.py3-none-manylinux_2_28_x86_64.whl" },
+    { url = "https://download.pytorch.org/whl/xpu/intel_pti-0.10.1-py2.py3-none-win_amd64.whl" },
+]
+
+[[package]]
+name = "intel-sycl-rt"
+version = "2025.0.4"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+resolution-markers = [
+    "sys_platform == 'linux'",
+]
+dependencies = [
+    { name = "intel-cmplr-lib-rt", version = "2025.0.4", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'linux'" },
+    { name = "intel-cmplr-lib-ur", version = "2025.0.4", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'linux'" },
+    { name = "intel-cmplr-lic-rt", version = "2025.0.4", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_sycl_rt-2025.0.4-py2.py3-none-manylinux_2_28_x86_64.whl" },
+]
+
+[[package]]
+name = "intel-sycl-rt"
+version = "2025.0.5"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "intel-cmplr-lib-rt", version = "2025.0.5", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'win32'" },
+    { name = "intel-cmplr-lib-ur", version = "2025.0.5", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'win32'" },
+    { name = "intel-cmplr-lic-rt", version = "2025.0.5", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'win32'" },
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/intel_sycl_rt-2025.0.5-py2.py3-none-win_amd64.whl" },
 ]
 
 [[package]]
@@ -160,7 +278,7 @@ wheels = [
 [[package]]
 name = "jinja2"
 version = "3.1.4"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 dependencies = [
     { name = "markupsafe" },
 ]
@@ -195,7 +313,7 @@ wheels = [
 [[package]]
 name = "markupsafe"
 version = "3.0.2"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/MarkupSafe-3.0.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:15ab75ef81add55874e7ab7055e9c397312385bd9ced94920f2802310c930396" },
 ]
@@ -215,7 +333,7 @@ wheels = [
 [[package]]
 name = "mpmath"
 version = "1.3.0"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/mpmath-1.3.0-py3-none-any.whl", hash = "sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c" },
 ]
@@ -223,7 +341,7 @@ wheels = [
 [[package]]
 name = "networkx"
 version = "3.3"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/networkx-3.3-py3-none-any.whl", hash = "sha256:28575580c6ebdaf4505b22c6256a2b9de86b316dc63ba9e93abde3d78dfdbcf2" },
 ]
@@ -319,9 +437,9 @@ requires-dist = [
     { name = "stack-data", specifier = "==0.6.3" },
     { name = "sympy", specifier = "==1.13.3" },
     { name = "tifffile", specifier = "==2025.6.11" },
-    { name = "torch", specifier = "==2.7.0+cpu" },
-    { name = "torchaudio", specifier = "==2.7.0+cpu" },
-    { name = "torchvision", specifier = "==0.22.0+cpu" },
+    { name = "torch", specifier = "==2.7.1" },
+    { name = "torchaudio", specifier = "==2.7.1" },
+    { name = "torchvision", specifier = "==0.22.1" },
     { name = "traitlets", specifier = "==5.14.3" },
     { name = "typing-extensions", specifier = "==4.12.2" },
     { name = "wcwidth", specifier = "==0.2.13" },
@@ -330,7 +448,7 @@ requires-dist = [
 [[package]]
 name = "numpy"
 version = "2.1.2"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/numpy-2.1.2-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:a84498e0d0a1174f2b3ed769b67b656aa5460c92c9554039e11f20a05650f00d" },
     { url = "https://download.pytorch.org/whl/numpy-2.1.2-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:4d6ec0d4222e8ffdab1744da2560f07856421b367928026fb540e1945f2eeeaf" },
@@ -423,7 +541,7 @@ wheels = [
 [[package]]
 name = "pillow"
 version = "11.0.0"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/pillow-11.0.0-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:bcd1fb5bb7b07f64c15618c89efcc2cfa3e95f0e3bcdbaf4642509de1942a699" },
     { url = "https://download.pytorch.org/whl/pillow-11.0.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:0e038b0745997c7dcaae350d35859c9715c71e92ffb7e0f4a8e8a16732150f38" },
@@ -494,6 +612,20 @@ wheels = [
 ]
 
 [[package]]
+name = "pytorch-triton-xpu"
+version = "3.3.1"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+dependencies = [
+    { name = "setuptools" },
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/pytorch_triton_xpu-3.3.1-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d1c6f522e11112a311b1a61ba7b40b43ad8305675fa29153017ccb1ad0b6816d" },
+    { url = "https://download.pytorch.org/whl/pytorch_triton_xpu-3.3.1-cp313-cp313-win_amd64.whl", hash = "sha256:1260c4a4bad426b6cd3c8f3e1a21835381c6f217bf434bcb55fedec08a206dea" },
+    { url = "https://download.pytorch.org/whl/pytorch_triton_xpu-3.3.1-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8a848f407d2e8ed135fc7643287c534bd26230ce9f24880ff3c8f4eb28710062" },
+    { url = "https://download.pytorch.org/whl/pytorch_triton_xpu-3.3.1-cp313-cp313t-win_amd64.whl", hash = "sha256:6c70828958ec58f226f9f859f63efdccfc36a88237beb83e6be875fa2464be3e" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -513,7 +645,7 @@ wheels = [
 [[package]]
 name = "setuptools"
 version = "70.2.0"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/setuptools-70.2.0-py3-none-any.whl", hash = "sha256:b8b8060bb426838fbe942479c90296ce976249451118ef566a5a0b7d8b78fb05" },
 ]
@@ -544,12 +676,21 @@ wheels = [
 [[package]]
 name = "sympy"
 version = "1.13.3"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 dependencies = [
     { name = "mpmath" },
 ]
 wheels = [
     { url = "https://download.pytorch.org/whl/sympy-1.13.3-py3-none-any.whl" },
+]
+
+[[package]]
+name = "tcmlib"
+version = "1.2.0"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/tcmlib-1.2.0-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:dee9a0665ffa0a74f0ec72844ef7d82e9178ebf6980a76ac65906303d5ed4d03" },
+    { url = "https://download.pytorch.org/whl/xpu/tcmlib-1.2.0-py2.py3-none-win_amd64.whl", hash = "sha256:f751e005fd815ed0efeb87d4523f6a0938c5671e59ac935614f42d8ebb6489c9" },
 ]
 
 [[package]]
@@ -566,54 +707,64 @@ wheels = [
 
 [[package]]
 name = "torch"
-version = "2.7.0+cpu"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+version = "2.7.1+xpu"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 dependencies = [
     { name = "filelock" },
     { name = "fsspec" },
+    { name = "intel-cmplr-lib-rt", version = "2025.0.4", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'linux'" },
+    { name = "intel-cmplr-lib-rt", version = "2025.0.5", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'win32'" },
+    { name = "intel-cmplr-lib-ur", version = "2025.0.4", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'linux'" },
+    { name = "intel-cmplr-lib-ur", version = "2025.0.5", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'win32'" },
+    { name = "intel-cmplr-lic-rt", version = "2025.0.4", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'linux'" },
+    { name = "intel-cmplr-lic-rt", version = "2025.0.5", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'win32'" },
+    { name = "intel-pti" },
+    { name = "intel-sycl-rt", version = "2025.0.4", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'linux'" },
+    { name = "intel-sycl-rt", version = "2025.0.5", source = { registry = "https://download.pytorch.org/whl/xpu" }, marker = "sys_platform == 'win32'" },
     { name = "jinja2" },
     { name = "networkx" },
+    { name = "pytorch-triton-xpu" },
     { name = "setuptools" },
     { name = "sympy" },
+    { name = "tcmlib" },
     { name = "typing-extensions" },
+    { name = "umf" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:addf9107939522ffb3b60d2900fee838a77dbe098e2643e01164f46f8612f9c0" },
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:3b09aa2c8d30fa567a8d13270fbf9af7ee472fdfafbc7dfdc87c607bf46001f7" },
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp313-cp313-win_amd64.whl", hash = "sha256:99ca8f4cb53484c45bb668657069c17139c07367ea20ddef2c0ce8412f42da2f" },
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:1bc9e6a4e2463582ae020d76ea0753ed9c84526e235089414d25c2c6d16ae866" },
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:7b31fa6b1d026542b4ed8ce7ec7ee5489413cd9bd6479c14c5ad559c15d92e3b" },
-    { url = "https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp313-cp313t-win_amd64.whl", hash = "sha256:b42cfe122faed26c6ffee1c97d64e6a1f72a081b64d457a2c97244c1497f4adc" },
+    { url = "https://download.pytorch.org/whl/xpu/torch-2.7.1%2Bxpu-cp313-cp313-linux_x86_64.whl", hash = "sha256:412b58ffcceebea399c9a1bcdb22896aa10385c2650a8c4f8a677fb11c49b448" },
+    { url = "https://download.pytorch.org/whl/xpu/torch-2.7.1%2Bxpu-cp313-cp313-win_amd64.whl", hash = "sha256:cd3669fee311bc3ee5501d696bf989226a6f2bf957d120a04881a07af05526d6" },
+    { url = "https://download.pytorch.org/whl/xpu/torch-2.7.1%2Bxpu-cp313-cp313t-linux_x86_64.whl", hash = "sha256:62be63ae0f255c2a51838bfc44ae1fbab167db6f3a4586fb9e76f8d33a5ed886" },
+    { url = "https://download.pytorch.org/whl/xpu/torch-2.7.1%2Bxpu-cp313-cp313t-win_amd64.whl", hash = "sha256:f97b93201e981b299e9e68c7cff457dd4b6d6ac435ea800418bfb0c1517657c5" },
 ]
 
 [[package]]
 name = "torchaudio"
-version = "2.7.0+cpu"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+version = "2.7.1+xpu"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 dependencies = [
     { name = "torch" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cpu/torchaudio-2.7.0%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:a807a6dabb9fe2d69c9cf49671dafdca5b180e62f8e941ce768f962421cdc1db" },
-    { url = "https://download.pytorch.org/whl/cpu/torchaudio-2.7.0%2Bcpu-cp313-cp313-win_amd64.whl", hash = "sha256:cb961386bf0b1b2fc94afb933e0d2dc553d281ac275d84d4f082758fd03249ab" },
-    { url = "https://download.pytorch.org/whl/cpu/torchaudio-2.7.0%2Bcpu-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:7df4a8f2762af73e89f31f9b2de8b07d08ab20a701f5a604c6c1dd23a777b23a" },
-    { url = "https://download.pytorch.org/whl/cpu/torchaudio-2.7.0%2Bcpu-cp313-cp313t-win_amd64.whl", hash = "sha256:6488fed9095a4f78ed8f71d7cbc94e7949c777eec412b4e0acd5e40a3e163505" },
+    { url = "https://download.pytorch.org/whl/xpu/torchaudio-2.7.1%2Bxpu-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:561866d3fa77fd254d470a054f60d45535d1a5b8a5f0845a67cdb9aa07fb4505" },
+    { url = "https://download.pytorch.org/whl/xpu/torchaudio-2.7.1%2Bxpu-cp313-cp313-win_amd64.whl", hash = "sha256:c4442b550f588d1f4961c6bb64e05cebf3c48027bf533b30ae29f7eddebc2f6d" },
+    { url = "https://download.pytorch.org/whl/xpu/torchaudio-2.7.1%2Bxpu-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:bd6168f1e772b515164544c66a50847b2caa6dea410d1886a9ffeb905054253f" },
+    { url = "https://download.pytorch.org/whl/xpu/torchaudio-2.7.1%2Bxpu-cp313-cp313t-win_amd64.whl", hash = "sha256:458906b69e2deab28d743dc00dd04f6041c3909fe21437e67834561fc9790d5a" },
 ]
 
 [[package]]
 name = "torchvision"
-version = "0.22.0+cpu"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+version = "0.22.1+xpu"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 dependencies = [
     { name = "numpy" },
     { name = "pillow" },
     { name = "torch" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cpu/torchvision-0.22.0%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:5878553b984d5903f4428a0de4d9e07a8d8d6c46a1a1072da6b2064c6e673a74" },
-    { url = "https://download.pytorch.org/whl/cpu/torchvision-0.22.0%2Bcpu-cp313-cp313-win_amd64.whl", hash = "sha256:0172e52a8df7779632e5f7e7842e4de1e787e2a8f790b0bf4547ef1d025f16fd" },
-    { url = "https://download.pytorch.org/whl/cpu/torchvision-0.22.0%2Bcpu-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:e65592541fd4ceb3609acf6da16b56c3cd9d93ef3a56cf8240236416c08f31dd" },
-    { url = "https://download.pytorch.org/whl/cpu/torchvision-0.22.0%2Bcpu-cp313-cp313t-win_amd64.whl", hash = "sha256:73b8bc94023e24d8fce8ece2175d4e588e704b83cc43dd2a185a0a1dc92b8d9a" },
+    { url = "https://download.pytorch.org/whl/xpu/torchvision-0.22.1%2Bxpu-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:f46945344ea911a70309231eaaf3b80c96f6646ce5515dc89aa94f94144e310e" },
+    { url = "https://download.pytorch.org/whl/xpu/torchvision-0.22.1%2Bxpu-cp313-cp313-win_amd64.whl", hash = "sha256:fa87b3677cd1af67ce423004283c1bde80e3571f391182a3e89b485e18e3c70f" },
+    { url = "https://download.pytorch.org/whl/xpu/torchvision-0.22.1%2Bxpu-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:ff998a6cb990f18a4708c1b6c388fbd1111c3f9be47dfaf280154d1334350fd2" },
+    { url = "https://download.pytorch.org/whl/xpu/torchvision-0.22.1%2Bxpu-cp313-cp313t-win_amd64.whl", hash = "sha256:164daf7b4f2476eb84492eb0cf8b8f440e363d29b01bbe6657109e72df12d018" },
 ]
 
 [[package]]
@@ -628,9 +779,21 @@ wheels = [
 [[package]]
 name = "typing-extensions"
 version = "4.12.2"
-source = { registry = "https://download.pytorch.org/whl/cpu" }
+source = { registry = "https://download.pytorch.org/whl/xpu" }
 wheels = [
     { url = "https://download.pytorch.org/whl/typing_extensions-4.12.2-py3-none-any.whl", hash = "sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d" },
+]
+
+[[package]]
+name = "umf"
+version = "0.9.1"
+source = { registry = "https://download.pytorch.org/whl/xpu" }
+dependencies = [
+    { name = "tcmlib" },
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/xpu/umf-0.9.1-py2.py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:2f7b8eb45e182b24823be420063799ea89b4f1cad6b9510b1fc6e04b809c7ec2" },
+    { url = "https://download.pytorch.org/whl/xpu/umf-0.9.1-py2.py3-none-win_amd64.whl", hash = "sha256:9d1336d63c7a6b36af1f76dab942a760168da519a1bfe6941fc6418198b10820" },
 ]
 
 [[package]]

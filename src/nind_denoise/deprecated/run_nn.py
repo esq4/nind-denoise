@@ -36,7 +36,7 @@ parser.add_argument('--resume', action='store_true', help='Look for an experimen
 parser.add_argument('--result_dir', default='results/train', type=str, help='Directory where results are stored (default: results/train)')
 parser.add_argument('--models_dir', default='models', type=str, help='Directory where models are saved/loaded (default: models)')
 parser.add_argument('--depth', default=22, type=int, help='Number of layers (default: 22)')
-parser.add_argument('--cuda_device', default=0, type=int, help='Device number (default: 0, typically 0-3)')
+parser.add_argument('--xpu_device', default=0, type=int, help='Device number (default: 0, typically 0-3)')
 parser.add_argument('--n_channels', default=128, type=int, help='Number of channels (default: 128)')
 parser.add_argument('--find_noise', action='store_true', help='(DnCNN) Model noise if set, otherwise generate clean image')
 parser.add_argument('--kernel_size', default=5, type=int, help='Kernel size')
@@ -65,8 +65,8 @@ print(args)
 #   bs57 = 8883
 #   bs71 = 10813
 #   bs72 = 10941
-# python3 run_nn.py --batch_size 36 --cuda_device 1 --n_channels 128 --kernel_size 5 : 11071 MB
-# python3 run_nn.py --model RedCNN --epoch 76 --cuda_device 3 --n_channels 128 --kernel_size 5 --batch_size 40 --depth 22: 11053 MB
+# python3 run_nn.py --batch_size 36 --xpu_device 1 --n_channels 128 --kernel_size 5 : 11071 MB
+# python3 run_nn.py --model RedCNN --epoch 76 --xpu_device 3 --n_channels 128 --kernel_size 5 --batch_size 40 --depth 22: 11053 MB
 # UNet: 11GB server BS=94, 8GB home BS=
 
 if args.train_data == None or args.train_data == []:
@@ -74,11 +74,11 @@ if args.train_data == None or args.train_data == []:
 else:
     train_data = args.train_data
 batch_size = args.batch_size
-cuda = torch.cuda.is_available()
-if cuda:
+xpu = torch.xpu.is_available()
+if xpu:
     cudnn.benchmark = True
-    torch.cuda.set_device(args.cuda_device)
-    device = torch.device("cuda:"+str(args.cuda_device))
+    torch.xpu.set_device(args.xpu_device)
+    device = torch.device("xpu:"+str(args.xpu_device))
 else:
     print("Warning: running on CPU is not sane.")
     device = torch.device("cpu")
@@ -171,9 +171,9 @@ if __name__ == '__main__':
         criterion = torch.nn.MSELoss()
     else:
         exit('Error: requested loss function '+args.lossf+' has not been implemented.')
-    if cuda:
-        model = model.cuda()
-        criterion = criterion.cuda()
+    if xpu:
+        model = model.xpu()
+        criterion = criterion.xpu()
     else:
         print("Warning: running on CPU is not sane")
     # Dataset
@@ -211,12 +211,12 @@ if __name__ == '__main__':
         epoch_time = time.time()
         for n_count, batch_xy in enumerate(DLoader):
             optimizer.zero_grad()
-            if cuda:
-                batch_x, batch_y = batch_xy[0].cuda(), batch_xy[1].cuda()
+            if xpu:
+                batch_x, batch_y = batch_xy[0].xpu(), batch_xy[1].xpu()
             else:
                 batch_x, batch_y = batch_xy[0], batch_xy[1]
 
-            loss = criterion(model(batch_y)[:,:,loss_crop_lb:loss_crop_up, loss_crop_lb:loss_crop_up], batch_x[:,:,loss_crop_lb:loss_crop_up, loss_crop_lb:loss_crop_up]).cuda()
+            loss = criterion(model(batch_y)[:,:,loss_crop_lb:loss_crop_up, loss_crop_lb:loss_crop_up], batch_x[:,:,loss_crop_lb:loss_crop_up, loss_crop_lb:loss_crop_up]).xpu()
             if args.lossf == 'SSIM':
                 loss = 1 - loss
             loss.backward()

@@ -57,7 +57,7 @@ class DebugOptions(Enum):
     KEEP_ALL_OUTPUT_IMAGES = 'keep_all_output_images'
 
 class Model:
-    def __init__(self, save_dict=True, device='cuda:0', printer=None, debug_options=[]):
+    def __init__(self, save_dict=True, device='xpu:0', printer=None, debug_options=[]):
         if printer is None:
             self.print = print
         else:
@@ -116,7 +116,7 @@ class Model:
             exit(0)
 
     @staticmethod
-    def instantiate_model(models_dpath, model_path=None, network=None, device='cuda:0', strparameters=None, pfun=print, keyword='', **parameters):
+    def instantiate_model(models_dpath, model_path=None, network=None, device='xpu:0', strparameters=None, pfun=print, keyword='', **parameters):
         '''
         instantiate the internal model used by a Model object
         '''
@@ -275,7 +275,7 @@ class Generator(Model):
 
 class Discriminator(Model):
     def __init__(self, models_dpath, beta1, lr, patience, network='Hul112Disc', weights_dict_path=None,
-                 model_path=None, device='cuda:0', loss_function='MSE',
+                 model_path=None, device='xpu:0', loss_function='MSE',
                  activation='PReLU', funit=32, not_conditional = False, printer=None, save_dict=True,
                  debug_options=[], reduce_lr_factor=.75):
         Model.__init__(self, save_dict, device, printer, debug_options)

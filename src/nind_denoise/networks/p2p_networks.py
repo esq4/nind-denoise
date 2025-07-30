@@ -76,14 +76,14 @@ def init_weights(net, init_type='normal', gain=0.02):
     net.apply(init_func)
 
 
-def init_net(net, init_type='normal', init_gain=0.02, gpu_id='cuda:0'):
-    if torch.cuda.is_available():
+def init_net(net, init_type='normal', init_gain=0.02, gpu_id='xpu:0'):
+    if torch.xpu.is_available():
         net.to(gpu_id)
     #init_weights(net, init_type, gain=init_gain)
     return net
 
 
-def define_G(input_nc, output_nc, ngf, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_id='cuda:0', net_type='Resnet'):
+def define_G(input_nc, output_nc, ngf, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_id='xpu:0', net_type='Resnet'):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
     if net_type == 'Resnet':
@@ -253,7 +253,7 @@ class Outconv(nn.Module):
 
 
 def define_D(input_nc, ndf, netD,
-             n_layers_D=3, norm='batch', use_sigmoid=False, init_type='normal', init_gain=0.02, gpu_id='cuda:0', out_activation=None, finalpool = False, funit=32):
+             n_layers_D=3, norm='batch', use_sigmoid=False, init_type='normal', init_gain=0.02, gpu_id='xpu:0', out_activation=None, finalpool = False, funit=32):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
 

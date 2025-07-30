@@ -145,7 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_crop_size', type=int, help='Minimum crop size. Dataset will be checked if this value is set.')
     parser.add_argument('--loss_cs', '--loss_crop_size', type=int, help='Center crop size used in loss function. default: use stride size from dataset directory name')
     parser.add_argument('--debug_options', '--debug', nargs='*', default=[], help=f"(space-separated) Debug options (available: {nn_common.DebugOptions})")
-    parser.add_argument('--cuda_device', '--device', default=0, type=int, help='Device number (default: 0, typically 0-3, -1 for CPU)')
+    parser.add_argument('--xpu_device', '--device', default=0, type=int, help='Device number (default: 0, typically 0-3, -1 for CPU)')
     parser.add_argument('--g_network', type=str, help='Generator network')
     parser.add_argument('--threads', type=int, default=6, help='Number of threads for data loader to use')
     parser.add_argument('--min_lr', type=float, help='Minimum learning rate (ends training)')
@@ -188,11 +188,11 @@ if __name__ == '__main__':
         
     # process some arguments
 
-    if args.cuda_device >= 0 and torch.cuda.is_available():
-        torch.cuda.set_device(args.cuda_device)
-        device = torch.device("cuda:"+str(args.cuda_device))
+    if args.xpu_device >= 0 and torch.xpu.is_available():
+        torch.xpu.set_device(args.xpu_device)
+        device = torch.device("xpu:"+str(args.xpu_device))
         cudnn.benchmark = True
-        #torch.cuda.manual_seed(123)
+        #torch.xpu.manual_seed(123)
     else:
         device = torch.device('cpu')
     #torch.manual_seed(123)

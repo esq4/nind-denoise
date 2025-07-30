@@ -26,7 +26,7 @@ def files(path):
         if os.path.isfile(os.path.join(path, fn)) and fn != 'res.txt':
             yield fn
 
-def gen_score(noisy_dir, gt_dir='../../datasets/test/NIND/ds_fs', device=torch.device('cuda:0')):
+def gen_score(noisy_dir, gt_dir='../../datasets/test/NIND/ds_fs', device=torch.device('xpu:0')):
     MSE = torch.nn.MSELoss().to(device)
     SSIM = pytorch_ssim.SSIM().to(device)
     with open(os.path.join(noisy_dir, 'res.txt'), 'w') as f:

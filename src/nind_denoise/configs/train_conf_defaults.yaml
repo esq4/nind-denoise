@@ -4,7 +4,7 @@ compute_SSIM_anyway: false
 cs: 220
 loss_cs: 161  # Center crop for the loss function. Should be bigger when g_network is not UNet.
 min_crop_size: null  # This triggers a dataset check.
-cuda_device: 0
+xpu_device: 0
 epochs: 321
 min_lr: 5.0e-08
 freeze_generator: false

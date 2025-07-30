@@ -1,3 +1,6 @@
+intel gpu version
+
+
 # nind-denoise
 
 Master thesis on natural image noise removal using Convolutional Neural Networks. Works with the Natural Image Noise Dataset to apply to real photographs, using a UNet network architecture by default.

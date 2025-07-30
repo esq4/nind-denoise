@@ -22,8 +22,8 @@ eginstall on any operating system: `pip3 install --user torch torchvision Config
 eginstall on Arch Linux:
 
  ```
-sudo pacman -S python-pytorch-opt-cuda python-opencv
-pacaur -Se python-torchvision-cuda  # I highly recommend removing the check() function because the tests take forever
+sudo pacman -S python-pytorch-opt-xpu python-opencv
+pacaur -Se python-torchvision-xpu  # I highly recommend removing the check() function because the tests take forever
 pacaur -S python-pytorch-piqa python-configargparse-git  # configargparse is outdated in the arch repo and results in 'None' (string) values.
  ```
 
@@ -33,7 +33,7 @@ pacaur -S python-pytorch-piqa python-configargparse-git  # configargparse is out
 python3 denoise_image.py --network <network_architecture> --model_path <model_filepath> --input <input_image_path> [-o output_image_path]
 ```
 
---device can be set to 0 for a CUDA-capable GPU, or -1 for CPU (slow)
+--device can be set to 0 for a xpu-capable GPU, or -1 for CPU (slow)
 
 the --batch_size can be increased (default: 1) to process multiple patches in parallel (less processing speed, more memory usage).
 
@@ -68,8 +68,8 @@ Requirements: python-pytorch, python-configargparse >= 1.3, python-opencv, pytho
 eg installation on (Arch Linux): 
 
 ```
-sudo pacman -S python-pytorch-opt-cuda python-opencv imagemagick libjpeg-turbo wget
-pacaur -Se python-torchvision-cuda  # I highly recommend removing the check() function because the tests take forever
+sudo pacman -S python-pytorch-opt-xpu python-opencv imagemagick libjpeg-turbo wget
+pacaur -Se python-torchvision-xpu  # I highly recommend removing the check() function because the tests take forever
 pacaur -S python-pytorch-piqa python-configargparse-git  # configargparse is outdated in the arch repo and results in 'None' (string) values.
 ```
 eg pip installation (note that imagemagick and libjpeg(<-turbo>) are not python packages and need to be installed for your distribution):

@@ -3,7 +3,7 @@ beta1: 0.75
 compute_SSIM_anyway: false
 config: configs/train_conf_utnet_std.yaml
 cs: 184
-cuda_device: 0
+xpu_device: 0
 d2_activation: PReLU
 d2_funit: 32
 d2_loss_function: MSE

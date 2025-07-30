@@ -37,7 +37,7 @@ def parse_args():
     parser.add_argument('--model_path', '--model_fpath', help='Generator pretrained model path (.pth for model, .pt for dictionary)')
     parser.add_argument('--model_parameters', default="", type=str, help='Model parameters with format "parameter1=value1,parameter2=value2"')
     parser.add_argument('--result_dir', default='../../results/NIND/test', type=str, help='directory where results are saved. Can also be set to "make_subdirs" to make a denoised/<model_directory_name> subdirectory')
-    parser.add_argument('--cuda_device', '--device', default=0, type=int, help='Device number (default: 0, typically 0-3)')
+    parser.add_argument('--xpu_device', '--device', default=0, type=int, help='Device number (default: 0, typically 0-3)')
     parser.add_argument('--no_scoring', action='store_true', help='Generate SSIM score and MSE loss unless this is set')
     parser.add_argument('--cs', type=str)
     parser.add_argument('--ucs', type=str)
@@ -98,8 +98,8 @@ if __name__ == '__main__':
                        args.model_parameters, '--ucs', str(args.ucs), '--cs', str(args.cs)]
                 if args.whole_image:
                     cmd.extend(['--whole_image', '--pad', '128'])
-                if args.cuda_device is not None:
-                    cmd.extend(['--cuda_device', str(args.cuda_device)])
+                if args.xpu_device is not None:
+                    cmd.extend(['--xpu_device', str(args.xpu_device)])
                 if args.max_subpixels is not None:
                     cmd.extend(['--max_subpixels', str(args.max_subpixels)])
                     print(cmd)
@@ -138,4 +138,4 @@ if __name__ == '__main__':
         utilities.dict_to_json(losses_per_set, json_res_fpath)
     # obsolete
     if not args.no_scoring:
-        loss.gen_score(denoised_save_dir, args.noisy_dir, device=pt_helpers.get_device(args.cuda_device))
+        loss.gen_score(denoised_save_dir, args.noisy_dir, device=pt_helpers.get_device(args.xpu_device))
