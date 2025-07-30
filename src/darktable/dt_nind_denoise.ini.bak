@@ -5,7 +5,7 @@ gmic = /usr/bin/gmic
 nind_denoise = python3 /home/rengo/nind-denoise/src/nind_denoise/denoise_image.py
 
 # cleanest with most details, but loses gradient in dark high-noise shots
-nind_denoise_params = --network UtNet --models_dpath "/home/rengo/nind-denoise/src/nind_denoise/networks/" --model_path "2021-06-14T20_27_nn_train.py" --config "/home/rengo/nind-denoise/src/nind_denoise/configs/train_conf_utnet_std.yaml" --config2 "/home/rengo/nind-denoise/src/nind_denoise/configs/train_with_clean_data.yaml" --g_model_path "nind_denoise-2021-06-12T11_48_nn_train.py" --config "/home/rengo/nind-denoise/src/nind_denoise/configs/train_conf_utnet_std.yaml" --config2 "/home/rengo/nind-denoise/src/nind_denoise/configs/train_w/generator_650.pt"
+nind_denoise_params = --network UtNet --models_dpath "/home/rengo/nind-denoise/src/nind_denoise/networks/" --model_path "2021-06-14T20_27_nn_train" --config "/home/rengo/nind-denoise/src/nind_denoise/configs/train_conf_utnet_std.yaml" --config2 "/home/rengo/nind-denoise/src/nind_denoise/configs/train_with_clean_data.yaml" --g_model_path "nind_denoise-2021-06-12T11_48_nn_train" --config "/home/rengo/nind-denoise/src/nind_denoise/configs/train_conf_utnet_std.yaml" --config2 "/home/rengo/nind-denoise/src/nind_denoise/configs/train_w/generator_650.pt"
 
 # soft details, but better gradients for dark high-noise shots
-# nind_denoise_params = --network UtNet --model_path "/home/rengo/nind-denoise/src/nind_denoise/models/2021-05-31T22_11_nn_train.py_--config_configs-train_conf_utnet_std.yaml_--debug_options_output_val_images_--test_interval_0_--epochs_1000_--g_activation_Hardswish"
+# nind_denoise_params = --network UtNet --model_path "/home/rengo/nind-denoise/src/nind_denoise/models/2021-05-31T22_11_nn_train_--config_configs-train_conf_utnet_std.yaml_--debug_options_output_val_images_--test_interval_0_--epochs_1000_--g_activation_Hardswish"

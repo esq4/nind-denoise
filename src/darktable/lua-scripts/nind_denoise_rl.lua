@@ -29,7 +29,7 @@
     * start the script "nind_denoise_rl" from Script Manager
     * in lua preferences:
       - paste in the nind_denoise command, including the --model-path, e.g.:
-        python3 ~/nind-denoise/src/nind_denoise/denoise_image.py  --model_path "~/nind-denoise/models/2021-06-14T20_27_nn_train.py_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_with_clean_data.yaml_--g_model_path_..-..-models-nind_denoise-2021-06-12T11_48_nn_train.py_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_w/generator_650.pt"
+        python3 ~/nind-denoise/src/nind_denoise/denoise_image.py  --model_path "~/nind-denoise/models/2021-06-14T20_27_nn_train_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_with_clean_data.yaml_--g_model_path_..-..-models-nind_denoise-2021-06-12T11_48_nn_train_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_w/generator_650.pt"
       - select GMic cli executable (for RL-deblur)
       - select the exiftool cli executable (optional, to copy EXIF to final image)
     * from "export selected", choose "nind-denoise RL" as target storage
