@@ -1,31 +1,58 @@
 # nind-denoise
 
-Master thesis on natural image noise removal using Convolutional Neural Networks. Works with the Natural Image Noise Dataset to apply to real photographs, using a UNet network architecture by default.
+## darktable-cli
 
-Much lighter version of https://github.com/trougnouf/mthesis-denoise
+Requirements
 
-TODO: C implementation that can be included in darktable, find lighter functional network architecture, reprocess raw data to train model at the beginning of pixel pipeline
+This is for folks' with Intel GPU's. It's about 6x faster than running on cpu (at least for me, YMMV). Make sure the right drivers for your system are installed along with OpenCL. This varies by distribution but should look something like (this is arch linux) "intel-compute-runtime," "extra/intel-graphics-compiler," "vulkan-intel" and "onednn." I'm not sure if all of those are required but it's a place to start. Proper operation can be verified with ```clinfo | grep device```
 
-See also:
-* Dataset: <https://commons.wikimedia.org/wiki/Natural_Image_Noise_Dataset>
-* Paper: <https://openaccess.thecvf.com/content_CVPRW_2019/html/NTIRE/Brummer_Natural_Image_Noise_Dataset_CVPRW_2019_paper.html>
-* Models: <https://drive.google.com/drive/folders/1XmY9yO3yhhhdwQ_btYCIpkUBFQ88H-pr?usp=sharing>
+You still need to download the models and put them in the ```models/``` subdirectory. 
 
-## test
+
+### Installation:
+
+Try this first:
+
+
+click the link or do the wget:
+[nind_denoise_xpu-0.1.0.tar.gz](https://github.com/user-attachments/files/21519250/nind_denoise_xpu-0.1.0.tar.gz)
+
+```
+wget https://github.com/user-attachments/files/21519250/nind_denoise_xpu-0.1.0.tar.gz
+tar -xf nind_denoise_xpu-0.1.0.tar.gz
+cd nind_denoise_xpu-0.1.0
+uv venv
+source activate .venv/bin/activate.bash
+uv pip install .
+```
+Open up the example .ini, modify it to suit your system and then drop it in src/darktable. 
+
+```
+python src/darktable/dt_nind_denoise.py /path/to/raw/image/file.RAW
+```
+
+You can also try this other way, which downloads a bunch of extra stuff you don't need (and you'll still have to modify my dt_nind_denoise.ini to match your system)
+
+```
+git clone https://github.com/commreteris/nind-denoise.git
+cd nind-denoise
+git checkout darktable-xli-xpu
+uv venv && source activate .venv/bin/activate.bash
+uv sync --managed-python
+``` 
+   _Hint:_ Replace ```activate.bash``` with the version for your shell. _e.g._, ```activate.fish```
+
+That might work? Don't forget to download models from the below (put them in src/nind_denoise/models)
+
+
+Good luck.
+
+
 
 ### dependencies
 
-pytorch, pytorch-opencv, python-configargparse, pyyaml, piqa
+Intel GPU drivers (see above) and uv.
 
-eginstall on any operating system: `pip3 install --user torch torchvision ConfigArgParse opencv-python pyyaml piqa`
-
-eginstall on Arch Linux:
-
- ```
-sudo pacman -S python-pytorch-opt-cuda python-opencv
-pacaur -Se python-torchvision-cuda  # I highly recommend removing the check() function because the tests take forever
-pacaur -S python-pytorch-piqa python-configargparse-git  # configargparse is outdated in the arch repo and results in 'None' (string) values.
- ```
 
 ### denoise an image
 
@@ -79,6 +106,20 @@ pip3 install --user torch torchvision piqa ConfigArgParse
 pip3 install --user opencv-python # recommended to install python-opencv from your distribution's package manager instead
 echo 'Don't forget to install imagemagick and libjpeg'
 ```
+
+### Info
+
+
+Master thesis on natural image noise removal using Convolutional Neural Networks. Works with the Natural Image Noise Dataset to apply to real photographs, using a UNet network architecture by default.
+
+Much lighter version of https://github.com/trougnouf/mthesis-denoise
+
+TODO: C implementation that can be included in darktable, find lighter functional network architecture, reprocess raw data to train model at the beginning of pixel pipeline
+
+See also:
+* Dataset: <https://commons.wikimedia.org/wiki/Natural_Image_Noise_Dataset>
+* Paper: <https://openaccess.thecvf.com/content_CVPRW_2019/html/NTIRE/Brummer_Natural_Image_Noise_Dataset_CVPRW_2019_paper.html>
+* Models: <https://drive.google.com/drive/folders/1XmY9yO3yhhhdwQ_btYCIpkUBFQ88H-pr?usp=sharing>
 
 
 ### Dataset gathering
