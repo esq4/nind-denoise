@@ -36,7 +36,7 @@ You can also try this other way, which downloads a bunch of extra stuff you don'
 ```
 git clone https://github.com/commreteris/nind-denoise.git
 cd nind-denoise
-git checkout darktable-xli-xpu
+git checkout darktable-cli-xpu
 uv venv && source activate .venv/bin/activate.bash
 uv sync --managed-python
 ``` 
