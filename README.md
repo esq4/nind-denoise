@@ -21,6 +21,7 @@ click the link or do the wget:
 wget https://github.com/user-attachments/files/21519250/nind_denoise_xpu-0.1.0.tar.gz
 tar -xf nind_denoise_xpu-0.1.0.tar.gz
 cd nind_denoise_xpu-0.1.0
+git checkout darktable-cli-xpu
 uv venv
 source activate .venv/bin/activate.bash
 uv pip install .
