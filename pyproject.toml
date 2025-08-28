@@ -10,7 +10,7 @@ dependencies = [
     "bs4==0.0.2",
     "configargparse==1.7.1",
     "decorator==5.2.1",
-    "docopt>=0.6.2",
+    "docopt==0.6.2",
     "executing==2.2.0",
     "exiv2==0.17.3",
     "filelock==3.13.1",
