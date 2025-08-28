@@ -1,5 +1,4 @@
 # nind-denoise
-
 This fork implements the following changes:
 - Improved code portability via ```torch.accelerator```. This should be able to use most hardware.
   - Support for Intel GPU's. Denoising (on mine) is about 6x faster than on cpu. (YMMV)
@@ -13,7 +12,6 @@ This fork implements the following changes:
  ```intel-compute-runtime```, ```extra/intel-graphics-compiler```, ```vulkan-intel``` and ```onednn```.
  I'm not sure if all of those are required - but it's a place to start. Proper operation can be verified with:
  ```clinfo | grep device```
-
 
 ## Installation:
 
@@ -53,6 +51,8 @@ uv add -r requirements.in --index "https://download.pytorch.org/whl/rocm6.3"
 ```
 
 ## Usage
+=======
+
 
 To denoise an image, run:
 
