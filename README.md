@@ -28,7 +28,6 @@ Good luck. Check out https://download.pytorch.org/whl/torch/ if you want to see 
 ```
 git clone https://github.com/commreteris/nind-denoise.git
 cd nind-denoise
-git checkout darktable-cli-xpu
 uv venv
 .venv/Scripts/activate
 uv add -r requirements.in
