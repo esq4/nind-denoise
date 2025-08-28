@@ -186,7 +186,7 @@ if __name__ == '__main__':
                         s1_filename,
                         '--apply-custom-presets', 'false',
                         '--core', '--conf', 'plugins/imageio/format/tiff/bpp=32'
-                        ], shell=True, check=True)
+                        ])
         if not os.path.exists(s1_filename):
             print("Error: first-stage export not found: ", s1_filename)
             raise Exception
@@ -212,7 +212,7 @@ if __name__ == '__main__':
                         s1_filename,
                         '--output',
                         denoised_filename,
-                        ], shell=True, check=True)
+                        ])
 
         if not os.path.exists(denoised_filename):
             print("Error: denoised image not found: ", denoised_filename)
@@ -244,7 +244,7 @@ if __name__ == '__main__':
                          '--icc-intent', 'PERCEPTUAL', '--icc-type', 'SRGB',
                         '--apply-custom-presets', 'false',
                         '--core', '--conf', 'plugins/imageio/format/tiff/bpp=16'
-                        ], shell=True, check=True)
+                        ])
 
         # call ImageMagick RL-deblur
         if rldeblur:
