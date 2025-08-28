@@ -26,22 +26,23 @@ def files(path):
         if os.path.isfile(os.path.join(path, fn)) and fn != 'res.txt':
             yield fn
 
-def gen_score(noisy_dir, gt_dir='../../datasets/test/NIND/ds_fs', device=torch.device('cuda:0')):
-    MSE = torch.nn.MSELoss().to(device)
-    SSIM = pytorch_ssim.SSIM().to(device)
-    with open(os.path.join(noisy_dir, 'res.txt'), 'w') as f:
-        for noisy_img in files(noisy_dir):
-            gtpath = find_gt_path(noisy_img, gt_dir)
-            noisy_path = os.path.join(noisy_dir, noisy_img)
-            gtimg = totensor(Image.open(gtpath)).to(device)
-            noisyimg = totensor(Image.open(noisy_path)).to(device)
-            gtimg = gtimg.reshape([1]+list(gtimg.shape))
-            noisyimg = noisyimg.reshape([1]+list(noisyimg.shape))
-            MSELoss = MSE(gtimg, noisyimg).item()
-            SSIMScore = SSIM(gtimg, noisyimg).item()
-            res =noisy_img+','+str(SSIMScore)+','+str(MSELoss)
-            print(res)
-            f.write(res+'\n')
+def gen_score(noisy_dir, gt_dir='../../datasets/test/NIND/ds_fs'):
+    with torch.accelerator.current_accelerator(check_available=True) as device: # will return None if no gpu, should all still work
+        MSE = torch.nn.MSELoss().to(device)
+        SSIM = pytorch_ssim.SSIM().to(device)
+        with open(os.path.join(noisy_dir, 'res.txt'), 'w') as f:
+            for noisy_img in files(noisy_dir):
+                gtpath = find_gt_path(noisy_img, gt_dir)
+                noisy_path = os.path.join(noisy_dir, noisy_img)
+                gtimg = totensor(Image.open(gtpath)).to(device)
+                noisyimg = totensor(Image.open(noisy_path)).to(device)
+                gtimg = gtimg.reshape([1]+list(gtimg.shape))
+                noisyimg = noisyimg.reshape([1]+list(noisyimg.shape))
+                MSELoss = MSE(gtimg, noisyimg).item()
+                SSIMScore = SSIM(gtimg, noisyimg).item()
+                res =noisy_img+','+str(SSIMScore)+','+str(MSELoss)
+                print(res)
+                f.write(res+'\n')
 
 if __name__ == "__main__":
 

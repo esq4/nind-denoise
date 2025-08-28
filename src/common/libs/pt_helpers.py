@@ -1,9 +1,11 @@
 import torch
 import cv2
+import tifffile
+import imageio
 from PIL import Image
 import torchvision
 import numpy as np
-import sys
+import sys, os
 sys.path.append('..')
 from common.libs import np_imgops
 from common.libs import pt_losses
@@ -21,10 +23,13 @@ def tensor_to_imgfile(tensor, path):
     if tensor.dtype == torch.float32:
         if path[-4:].lower() in ['.jpg', 'jpeg']:  # 8-bit
             return torchvision.utils.save_image(tensor.clip(0,1), path)
-        elif path[-4:].lower() in ['.png', '.tif', 'tiff']:  # 16-bit
+        elif path[-4:].lower() in ['.png', '.tif']:  # 16-bit
             nptensor = (tensor.clip(0,1)*65535).round().cpu().numpy().astype(np.uint16).transpose(1,2,0)
             nptensor = cv2.cvtColor(nptensor, cv2.COLOR_RGB2BGR)
             cv2.imwrite(path, nptensor)
+        elif path[-4:].lower() in ['tiff']:  # 32-bit
+            nptensor = tensor.cpu().numpy().astype(np.float32).transpose(1,2,0)
+            imageio.imwrite(path, nptensor)
         else:
             raise NotImplementedError(f'Extension in {path}')
     elif tensor.dtype == torch.uint8:
@@ -33,7 +38,7 @@ def tensor_to_imgfile(tensor, path):
         pilimg.save(path)
     else:
         raise NotImplementedError(tensor.dtype)
-    
+
 def get_losses(img1_fpath, img2_fpath):
     img1 = fpath_to_tensor(img1_fpath).unsqueeze(0)
     img2 = fpath_to_tensor(img2_fpath).unsqueeze(0)
@@ -45,22 +50,8 @@ def get_losses(img1_fpath, img2_fpath):
     return res
 
 def get_device(device_n=None):
-    """get device given index (-1 = CPU)"""
-    if isinstance(device_n, torch.device):
-        return device_n
-    elif isinstance(device_n, str):
-        if device_n == 'cpu':
-            return torch.device('cpu')
-        device_n = int(device_n)
-    if device_n is None:
-        if torch.cuda.is_available():
-            return torch.device("cuda")
-        else:
-            print('get_device: cuda not available; defaulting to cpu')
-            return torch.device("cpu")
-    elif torch.cuda.is_available() and device_n >= 0:
-        return torch.device("cuda:%i" % device_n)
-    elif device_n >= 0:
-        print('get_device: cuda not available')
-    return torch.device('cpu')
-    
+    if (current_device := torch.accelerator.current_accelerator(check_available=True)) is not None:
+        return current_device
+    else:
+        print('Accelerator (gpu/xpu/etc.) device not available; defaulting to cpu.')
+        return torch.device("cpu")

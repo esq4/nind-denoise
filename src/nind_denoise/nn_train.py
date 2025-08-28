@@ -31,14 +31,11 @@ import configargparse
 import os
 import time
 import datetime
-import sys
 import torch
 from torch.utils.data import DataLoader
-import torch.backends.cudnn as cudnn
 import random
 import statistics
 import collections
-#from nn_common import default_values as DEFAULT
 import yaml
 import torchvision
 import shutil
@@ -145,7 +142,6 @@ if __name__ == '__main__':
     parser.add_argument('--min_crop_size', type=int, help='Minimum crop size. Dataset will be checked if this value is set.')
     parser.add_argument('--loss_cs', '--loss_crop_size', type=int, help='Center crop size used in loss function. default: use stride size from dataset directory name')
     parser.add_argument('--debug_options', '--debug', nargs='*', default=[], help=f"(space-separated) Debug options (available: {nn_common.DebugOptions})")
-    parser.add_argument('--cuda_device', '--device', default=0, type=int, help='Device number (default: 0, typically 0-3, -1 for CPU)')
     parser.add_argument('--g_network', type=str, help='Generator network')
     parser.add_argument('--threads', type=int, default=6, help='Number of threads for data loader to use')
     parser.add_argument('--min_lr', type=float, help='Minimum learning rate (ends training)')
@@ -185,276 +181,271 @@ if __name__ == '__main__':
     parser.add_argument('--discriminator2_advantage', type=float, default=0.0, help='Desired discriminator correct prediction ratio is 0.5+advantage')
     
     args = parser.parse_args()
-        
-    # process some arguments
 
-    if args.cuda_device >= 0 and torch.cuda.is_available():
-        torch.cuda.set_device(args.cuda_device)
-        device = torch.device("cuda:"+str(args.cuda_device))
-        cudnn.benchmark = True
-        #torch.cuda.manual_seed(123)
-    else:
-        device = torch.device('cpu')
-    #torch.manual_seed(123)
-    
-    debug_options = [nn_common.DebugOptions(opt) for opt in args.debug_options]
+    # with device agnosticism:
+    with (
+            torch.accelerator.current_accelerator() if torch.accelerator.is_available()
+            else torch.device('cpu')
+    ) as device:
 
-    weights = nn_common.get_weights(args)
-    use_D = weights['D1'] > 0
-    use_D2 = weights['D2'] > 0
-    
-    expname = (datetime.datetime.now().isoformat()[:-10]+'_'+'_'.join(sys.argv).replace('/','-'))[0:255]
-    model_dir = os.path.join(args.models_dpath, expname)
-    os.makedirs(model_dir, exist_ok=True)
-    txt_path = os.path.join(model_dir, 'train.log')
-    jsonsaver = json_saver.JSONSaver(os.path.join(model_dir, 'trainres.json'), step_type='epoch')
-    
-    
-    frozen_generator = args.freeze_generator
-    
-    p = nn_common.Printer(file_path=os.path.join(txt_path))
-    
-    p.print(args)
-    p.print("cmd: python3 "+" ".join(sys.argv))
-    
-    args.test_reserve = nn_common.get_test_reserve_list(args.test_reserve)
-    p.print(f'test_reserve: {args.test_reserve}')
-    
-    # Train data
-    if (args.min_crop_size is None or args.min_crop_size == 0) and nn_common.DebugOptions.CHECK_DATASET in debug_options:
-        args.min_crop_size = args.cs
-    DDataset = dataset_torch_3.DenoisingDataset(args.train_data, test_reserve=args.test_reserve,
-                                                cs=args.cs, min_crop_size=args.min_crop_size,
-                                                exp_mult_min=args.exp_mult_min,
-                                                exp_mult_max=args.exp_mult_max)
-    if args.loss_cs is None:
-        args.loss_cs = DDataset.min_crop_size
-        assert args.loss_cs is not None
-    if args.cs is None:
-        args.cs = DDataset.cs
-    if nn_common.DebugOptions.SHORT_RUN in debug_options:
-        DDataset.dataset = DDataset.dataset[:3*args.batch_size]
-    
-    if args.clean_data_ratio is not None and args.clean_data_ratio > 0:
-        CCdataset = dataset_torch_3.CleanCleanDataset(args.clean_data_dpath, cs=args.cs)
-        bs_clean = max(1, int(args.batch_size * args.clean_data_ratio))
-        bs_std = args.batch_size - bs_clean
-        p.print(f'Initialized clean dataset of size {len(CCdataset)}. Clean batch_size = {bs_clean}')
-        clean_dataloader = DataLoader(dataset=CCdataset, num_workers=min(max(1, args.threads//2), bs_clean), batch_size=bs_clean, shuffle=True)
-        clean_dataloader_iterator = iter(clean_dataloader)
-    else:
-        bs_clean = 0
-        bs_std = args.batch_size
-        
-    data_loader = DataLoader(dataset=DDataset, num_workers=args.threads, drop_last=True,
-                             batch_size=bs_std, shuffle=True)
+        debug_options = [nn_common.DebugOptions(opt) for opt in args.debug_options]
 
-    # init models
-    
-    if use_D:
-        discriminator = nn_common.Discriminator(network=args.d_network, model_path=args.d_model_path,
-                                      device=device, loss_function=args.d_loss_function,
-                                      activation=args.d_activation, funit=args.d_funit,
-                                      beta1=args.beta1, lr=args.d_lr,
-                                      not_conditional=args.not_conditional, printer=p,
-                                      patience=args.patience, debug_options=debug_options,
-                                      models_dpath=args.models_dpath,
-                                      reduce_lr_factor=args.reduce_lr_factor)
-    if use_D2:
-        discriminator2 = nn_common.Discriminator(network=args.d2_network, model_path=args.d2_model_path,
-                                      device=device, loss_function=args.d2_loss_function,
-                                      activation=args.d2_activation, funit=args.d2_funit,
-                                      beta1=args.beta1, lr=args.d2_lr,
-                                      not_conditional=args.not_conditional_2, printer=p,
-                                      patience=args.patience, debug_options=debug_options,
-                                      models_dpath=args.models_dpath,
-                                      reduce_lr_factor=args.reduce_lr_factor)
-    generator = nn_common.Generator(network=args.g_network, model_path=args.g_model_path,
-                                    device=device,weights=weights, activation=args.g_activation,
-                                    funit=args.g_funit, beta1=args.beta1, lr=args.g_lr,
-                                    printer=p, compute_SSIM_anyway=args.compute_SSIM_anyway,
-                                    patience=args.patience, debug_options=debug_options,
-                                    models_dpath=args.models_dpath,
-                                    reduce_lr_factor=args.reduce_lr_factor)
-    
-    discriminator_predictions, discriminator2_predictions = None, None
-    generator_learning_rate = args.g_lr
-    discriminator_learning_rate = args.d_lr
+        weights = nn_common.get_weights(args)
+        use_D = weights['D1'] > 0
+        use_D2 = weights['D2'] > 0
 
-    # Validation data
-    if args.validation_interval > 0:
-        validation_set = dataset_torch_3.ValidationDataset(args.validation_set_yaml, device=device, cs=args.cs)
-        if nn_common.DebugOptions.OUTPUT_VAL_IMAGES in debug_options:
-            get_validation_dpath = lambda epoch: os.path.join(model_dir, 'val', str(epoch))
+        expname = (datetime.datetime.now().isoformat()[:-10]+'_'+'_'.join(sys.argv).replace('/','-'))[0:255]
+        model_dir = os.path.join(args.models_dpath, expname)
+        os.makedirs(model_dir, exist_ok=True)
+        txt_path = os.path.join(model_dir, 'train.log')
+        jsonsaver = json_saver.JSONSaver(os.path.join(model_dir, 'trainres.json'), step_type='epoch')
+
+
+        frozen_generator = args.freeze_generator
+
+        p = nn_common.Printer(file_path=os.path.join(txt_path))
+
+        p.print(args)
+        p.print("cmd: python3 "+" ".join(sys.argv))
+
+        args.test_reserve = nn_common.get_test_reserve_list(args.test_reserve)
+        p.print(f'test_reserve: {args.test_reserve}')
+
+        # Train data
+        if (args.min_crop_size is None or args.min_crop_size == 0) and nn_common.DebugOptions.CHECK_DATASET in debug_options:
+            args.min_crop_size = args.cs
+        DDataset = dataset_torch_3.DenoisingDataset(args.train_data, test_reserve=args.test_reserve,
+                                                    cs=args.cs, min_crop_size=args.min_crop_size,
+                                                    exp_mult_min=args.exp_mult_min,
+                                                    exp_mult_max=args.exp_mult_max)
+        if args.loss_cs is None:
+            args.loss_cs = DDataset.min_crop_size
+            assert args.loss_cs is not None
+        if args.cs is None:
+            args.cs = DDataset.cs
+        if nn_common.DebugOptions.SHORT_RUN in debug_options:
+            DDataset.dataset = DDataset.dataset[:3*args.batch_size]
+
+        if args.clean_data_ratio is not None and args.clean_data_ratio > 0:
+            CCdataset = dataset_torch_3.CleanCleanDataset(args.clean_data_dpath, cs=args.cs)
+            bs_clean = max(1, int(args.batch_size * args.clean_data_ratio))
+            bs_std = args.batch_size - bs_clean
+            p.print(f'Initialized clean dataset of size {len(CCdataset)}. Clean batch_size = {bs_clean}')
+            clean_dataloader = DataLoader(dataset=CCdataset, num_workers=min(max(1, args.threads//2), bs_clean), batch_size=bs_clean, shuffle=True)
+            clean_dataloader_iterator = iter(clean_dataloader)
         else:
-            get_validation_dpath = lambda epoch: None
-        validation_loss = validate_generator(generator, validation_set, output_to_dir=get_validation_dpath(0))
-        jsonsaver.add_res(0, {'validation_loss': validation_loss}, write=True)
-        p.print(f'Validation loss: {validation_loss}')
-    # Test data
-    if args.test_interval > 0:
-        test_set = dataset_torch_3.TestDenoiseDataset(data_dpath=args.orig_data,
-                                                      sets=args.test_reserve)
-        if nn_common.DebugOptions.OUTPUT_TEST_IMAGES in debug_options:
-            get_test_dpath = lambda epoch: os.path.join(model_dir, 'testimages', str(epoch))
-        else:
-            get_test_dpath = lambda epoch: None
+            bs_clean = 0
+            bs_std = args.batch_size
 
-    with open(os.path.join(model_dir, 'config.yaml'), 'w') as fp:
-        yaml.dump(vars(args), fp)
+        data_loader = DataLoader(dataset=DDataset, num_workers=args.threads, drop_last=True,
+                                 batch_size=bs_std, shuffle=True)
 
-    start_time = time.time()
-    generator_loss_hist = collections.deque(maxlen=args.patience)
-        
-        
-    # Train        
-    for epoch in range(args.start_epoch, args.epochs):
-        loss_D_list = []
-        loss_D2_list = []
-        loss_G_list = []
-        loss_G_SSIM_list = []
-        epoch_start_time = time.time()
+        # init models
 
-        for iteration, batch in enumerate(data_loader, 1):
-            if bs_clean > 0:
-                try:
-                    clean_batch = next(clean_dataloader_iterator)
-                except StopIteration:
-                    clean_dataloader_iterator = iter(clean_dataloader)
-                    clean_batch = next(clean_dataloader_iterator)
-                    p.print('Reloading clean_dataloader')
-                batch[0] = torch.cat((batch[0], clean_batch[0]))
-                batch[1] = torch.cat((batch[1], clean_batch[1]))
-            iteration_summary = 'Epoch %u batch %u/%u: ' % (epoch, iteration, len(data_loader))
-            clean_batch_cropped = pt_ops.pt_crop_batch(batch[0].to(device), args.loss_cs)
-            noisy_batch = batch[1].to(device)
-            noisy_batch_cropped = pt_ops.pt_crop_batch(noisy_batch, args.loss_cs)
-            generated_batch = generator.denoise_batch(noisy_batch)
-            generated_batch_cropped = pt_ops.pt_crop_batch(generated_batch, args.loss_cs)
-            # train discriminator based on its previous performance
-            discriminator_learns = (use_D and (discriminator.get_loss()+args.discriminator_advantage) > random.random()) or frozen_generator
-            if discriminator_learns:
-                discriminator.learn(noisy_batch_cropped=noisy_batch_cropped,
-                                    generated_batch_cropped=generated_batch_cropped,
-                                    clean_batch_cropped=clean_batch_cropped)
-                loss_D_list.append(discriminator.get_loss())
-                iteration_summary += 'loss D: %f (%s)' % (discriminator.get_loss(), discriminator.get_predictions_range())
-            # train discriminator2 based on its previous performance
-            discriminator2_learns = (use_D2 and (discriminator2.get_loss()+args.discriminator2_advantage) > random.random()) or (use_D2 and frozen_generator)
-            if discriminator2_learns:
-                discriminator2.learn(noisy_batch_cropped=noisy_batch_cropped,
-                                    generated_batch_cropped=generated_batch_cropped,
-                                    clean_batch_cropped=clean_batch_cropped)
-                loss_D2_list.append(discriminator2.get_loss())
-                if discriminator_learns:
-                    iteration_summary += ', '
-                while len(iteration_summary) < 90:
-                    iteration_summary += ' '
-                iteration_summary += 'loss D2: %f (%s)' % (discriminator2.get_loss(), discriminator2.get_predictions_range())
-            # train generator if discriminator didn't learn or discriminator is somewhat useful
-            generator_learns = not frozen_generator and (
-                (not discriminator_learns and not discriminator2_learns)
-                or (discriminator_learns and discriminator2_learns and (discriminator2.get_loss()+args.discriminator2_advantage+discriminator.get_loss()+args.discriminator_advantage)/2 < random.random())
-                or (discriminator_learns and (not discriminator2_learns) and discriminator.get_loss()+args.discriminator_advantage < random.random())
-                or (discriminator2_learns and (not discriminator_learns) and discriminator2.get_loss()+args.discriminator2_advantage < random.random())
-                )
-            if generator_learns:
-                if discriminator_learns or discriminator2_learns:
-                    iteration_summary += ', '
-                pregenres_space = 1 if not use_D else 125
-                pregenres_space = 160 if use_D2 else pregenres_space
-                while len(iteration_summary) < pregenres_space:
-                    iteration_summary += ' '
-                if use_D:
-                    discriminator_predictions = discriminator.discriminate_batch(
-                        generated_batch_cropped=generated_batch_cropped,
-                        noisy_batch_cropped=noisy_batch_cropped)
-                if use_D2:
-                    discriminator2_predictions = discriminator2.discriminate_batch(
-                        generated_batch_cropped=generated_batch_cropped,
-                        noisy_batch_cropped=noisy_batch_cropped)
-                else:
-                    discriminator2_predictions = None
-                generator.learn(generated_batch_cropped=generated_batch_cropped,
-                                clean_batch_cropped=clean_batch_cropped,
-                                discriminators_predictions=[discriminator_predictions,
-                                                            discriminator2_predictions])
-                loss_G_list.append(generator.get_loss(component='weighted'))
-                if generator.weights['SSIM'] > 0 or generator.compute_SSIM_anyway:
-                    loss_G_SSIM_list.append(generator.get_loss(component='SSIM'))
-                iteration_summary += 'loss G: %s' % generator.get_loss(pretty_printed=True)
-            else:
-                generator.zero_grad()
-                if frozen_generator:
-                    frozen_generator = discriminator.get_loss() > 0.33 and ((not use_D2) or discriminator2.get_loss() > 0.33)
-            p.print(iteration_summary)
-        
-        # cleanup previous epochs
-        removed = delete_outperformed_models(dpath=model_dir, keepers=jsonsaver.get_best_steps(),
-                                   model_t='generator',
-                                   keep_all_output_images= nn_common.DebugOptions.KEEP_ALL_OUTPUT_IMAGES in debug_options)
-        p.print(f'delete_outperformed_models removed {removed}')
-        
-        # Do validation
-        if args.validation_interval > 0 and epoch%args.validation_interval == 0:
-            validation_loss = validate_generator(generator, validation_set,
-                                                 output_to_dir=get_validation_dpath(epoch))
-            jsonsaver.add_res(epoch, {'validation_loss': validation_loss}, write=False)
-            p.print(f'Validation loss: {validation_loss}')
-        if args.test_interval > 0 and epoch%args.test_interval == 0:
-            test_loss = test_generator(generator, test_set, output_to_dir=get_test_dpath(epoch))
-            jsonsaver.add_res(epoch, {'test_loss': test_loss}, write=False)
-            
-        p.print("Epoch %u summary:" % epoch)
-        p.print("Time elapsed (s): %u (epoch), %u (total)" % (time.time()-epoch_start_time,
-                                                              time.time()-start_time))
-        p.print("Generator:")
-        if len(loss_G_SSIM_list) > 0:
-            p.print("Average SSIM loss: %f" % statistics.mean(loss_G_SSIM_list))
-            jsonsaver.add_res(epoch, {'train_SSIM_loss': statistics.mean(loss_G_SSIM_list)},
-                              write=False)
-        if len(loss_G_list) > 0:
-            average_g_weighted_loss = statistics.mean(loss_G_list)
-            p.print("Average weighted loss: %f" % average_g_weighted_loss)
-            jsonsaver.add_res(
-                epoch, {'train_weighted_loss': average_g_weighted_loss},
-                write=False)
-            lr_loss = validation_loss if validation_loss is not None else average_g_weighted_loss
-            
-            if len(generator_loss_hist) > 0 and max(generator_loss_hist) < lr_loss:
-                generator_learning_rate = generator.update_learning_rate(args.reduce_lr_factor)
-                p.print(f'Generator learning rate updated to {generator_learning_rate} because generator_loss_hist={generator_loss_hist} < lr_loss={lr_loss}')
-            generator_loss_hist.append(lr_loss)
-            
-            # TODO reset to previous best (or init if epoch 1) if failed (eg lr_loss <= .4)
-            
-            jsonsaver.add_res(
-                epoch, {'gen_lr': generator_learning_rate},
-                write=True)
-        else:
-            p.print("Generator learned nothing")
         if use_D:
-            # TODO add discriminator(s) to jsonsaver and use for cleanup if plan to use those
-            p.print("Discriminator:")
-            if len(loss_D_list) > 0:
-                average_d_loss = statistics.mean(loss_D_list)
-                p.print("Average normalized loss: %f" % (average_d_loss))
-                discriminator_learning_rate = discriminator.update_learning_rate(average_d_loss)
-                discriminator.save_model(model_dir, epoch, 'discriminator')
+            discriminator = nn_common.Discriminator(network=args.d_network, model_path=args.d_model_path,
+                                          device=device, loss_function=args.d_loss_function,
+                                          activation=args.d_activation, funit=args.d_funit,
+                                          beta1=args.beta1, lr=args.d_lr,
+                                          not_conditional=args.not_conditional, printer=p,
+                                          patience=args.patience, debug_options=debug_options,
+                                          models_dpath=args.models_dpath,
+                                          reduce_lr_factor=args.reduce_lr_factor)
         if use_D2:
-            p.print("Discriminator2:")
-            if len(loss_D2_list) > 0:
-                average_d2_loss = statistics.mean(loss_D2_list)
-                p.print("Average normalized loss: %f" % (average_d2_loss))
-                discriminator2_learning_rate = discriminator2.update_learning_rate(average_d2_loss)
-                discriminator2.save_model(model_dir, epoch, 'discriminator2')
-        if not frozen_generator:
-            generator.save_model(model_dir, epoch, 'generator')
-        if args.time_limit and args.time_limit < time.time() - start_time:
-            p.print("Time is up")
-            exit(0)
-        if ((not use_D) or discriminator_learning_rate < args.min_lr) and generator_learning_rate < args.min_lr:
-            p.print("Minimum learning rate reached")
-            exit(0)
-        
+            discriminator2 = nn_common.Discriminator(network=args.d2_network, model_path=args.d2_model_path,
+                                          device=device, loss_function=args.d2_loss_function,
+                                          activation=args.d2_activation, funit=args.d2_funit,
+                                          beta1=args.beta1, lr=args.d2_lr,
+                                          not_conditional=args.not_conditional_2, printer=p,
+                                          patience=args.patience, debug_options=debug_options,
+                                          models_dpath=args.models_dpath,
+                                          reduce_lr_factor=args.reduce_lr_factor)
+        generator = nn_common.Generator(network=args.g_network, model_path=args.g_model_path,
+                                        device=device,weights=weights, activation=args.g_activation,
+                                        funit=args.g_funit, beta1=args.beta1, lr=args.g_lr,
+                                        printer=p, compute_SSIM_anyway=args.compute_SSIM_anyway,
+                                        patience=args.patience, debug_options=debug_options,
+                                        models_dpath=args.models_dpath,
+                                        reduce_lr_factor=args.reduce_lr_factor)
+
+        discriminator_predictions, discriminator2_predictions = None, None
+        generator_learning_rate = args.g_lr
+        discriminator_learning_rate = args.d_lr
+
+        # Validation data
+        if args.validation_interval > 0:
+            validation_set = dataset_torch_3.ValidationDataset(args.validation_set_yaml, device=device, cs=args.cs)
+            if nn_common.DebugOptions.OUTPUT_VAL_IMAGES in debug_options:
+                get_validation_dpath = lambda epoch: os.path.join(model_dir, 'val', str(epoch))
+            else:
+                get_validation_dpath = lambda epoch: None
+            validation_loss = validate_generator(generator, validation_set, output_to_dir=get_validation_dpath(0))
+            jsonsaver.add_res(0, {'validation_loss': validation_loss}, write=True)
+            p.print(f'Validation loss: {validation_loss}')
+        # Test data
+        if args.test_interval > 0:
+            test_set = dataset_torch_3.TestDenoiseDataset(data_dpath=args.orig_data,
+                                                          sets=args.test_reserve)
+            if nn_common.DebugOptions.OUTPUT_TEST_IMAGES in debug_options:
+                get_test_dpath = lambda epoch: os.path.join(model_dir, 'testimages', str(epoch))
+            else:
+                get_test_dpath = lambda epoch: None
+
+        with open(os.path.join(model_dir, 'config.yaml'), 'w') as fp:
+            yaml.dump(vars(args), fp)
+
+        start_time = time.time()
+        generator_loss_hist = collections.deque(maxlen=args.patience)
+
+
+        # Train
+        for epoch in range(args.start_epoch, args.epochs):
+            loss_D_list = []
+            loss_D2_list = []
+            loss_G_list = []
+            loss_G_SSIM_list = []
+            epoch_start_time = time.time()
+
+            for iteration, batch in enumerate(data_loader, 1):
+                if bs_clean > 0:
+                    try:
+                        clean_batch = next(clean_dataloader_iterator)
+                    except StopIteration:
+                        clean_dataloader_iterator = iter(clean_dataloader)
+                        clean_batch = next(clean_dataloader_iterator)
+                        p.print('Reloading clean_dataloader')
+                    batch[0] = torch.cat((batch[0], clean_batch[0]))
+                    batch[1] = torch.cat((batch[1], clean_batch[1]))
+                iteration_summary = 'Epoch %u batch %u/%u: ' % (epoch, iteration, len(data_loader))
+                clean_batch_cropped = pt_ops.pt_crop_batch(batch[0].to(device), args.loss_cs)
+                noisy_batch = batch[1].to(device)
+                noisy_batch_cropped = pt_ops.pt_crop_batch(noisy_batch, args.loss_cs)
+                generated_batch = generator.denoise_batch(noisy_batch)
+                generated_batch_cropped = pt_ops.pt_crop_batch(generated_batch, args.loss_cs)
+                # train discriminator based on its previous performance
+                discriminator_learns = (use_D and (discriminator.get_loss()+args.discriminator_advantage) > random.random()) or frozen_generator
+                if discriminator_learns:
+                    discriminator.learn(noisy_batch_cropped=noisy_batch_cropped,
+                                        generated_batch_cropped=generated_batch_cropped,
+                                        clean_batch_cropped=clean_batch_cropped)
+                    loss_D_list.append(discriminator.get_loss())
+                    iteration_summary += 'loss D: %f (%s)' % (discriminator.get_loss(), discriminator.get_predictions_range())
+                # train discriminator2 based on its previous performance
+                discriminator2_learns = (use_D2 and (discriminator2.get_loss()+args.discriminator2_advantage) > random.random()) or (use_D2 and frozen_generator)
+                if discriminator2_learns:
+                    discriminator2.learn(noisy_batch_cropped=noisy_batch_cropped,
+                                        generated_batch_cropped=generated_batch_cropped,
+                                        clean_batch_cropped=clean_batch_cropped)
+                    loss_D2_list.append(discriminator2.get_loss())
+                    if discriminator_learns:
+                        iteration_summary += ', '
+                    while len(iteration_summary) < 90:
+                        iteration_summary += ' '
+                    iteration_summary += 'loss D2: %f (%s)' % (discriminator2.get_loss(), discriminator2.get_predictions_range())
+                # train generator if discriminator didn't learn or discriminator is somewhat useful
+                generator_learns = not frozen_generator and (
+                    (not discriminator_learns and not discriminator2_learns)
+                    or (discriminator_learns and discriminator2_learns and (discriminator2.get_loss()+args.discriminator2_advantage+discriminator.get_loss()+args.discriminator_advantage)/2 < random.random())
+                    or (discriminator_learns and (not discriminator2_learns) and discriminator.get_loss()+args.discriminator_advantage < random.random())
+                    or (discriminator2_learns and (not discriminator_learns) and discriminator2.get_loss()+args.discriminator2_advantage < random.random())
+                    )
+                if generator_learns:
+                    if discriminator_learns or discriminator2_learns:
+                        iteration_summary += ', '
+                    pregenres_space = 1 if not use_D else 125
+                    pregenres_space = 160 if use_D2 else pregenres_space
+                    while len(iteration_summary) < pregenres_space:
+                        iteration_summary += ' '
+                    if use_D:
+                        discriminator_predictions = discriminator.discriminate_batch(
+                            generated_batch_cropped=generated_batch_cropped,
+                            noisy_batch_cropped=noisy_batch_cropped)
+                    if use_D2:
+                        discriminator2_predictions = discriminator2.discriminate_batch(
+                            generated_batch_cropped=generated_batch_cropped,
+                            noisy_batch_cropped=noisy_batch_cropped)
+                    else:
+                        discriminator2_predictions = None
+                    generator.learn(generated_batch_cropped=generated_batch_cropped,
+                                    clean_batch_cropped=clean_batch_cropped,
+                                    discriminators_predictions=[discriminator_predictions,
+                                                                discriminator2_predictions])
+                    loss_G_list.append(generator.get_loss(component='weighted'))
+                    if generator.weights['SSIM'] > 0 or generator.compute_SSIM_anyway:
+                        loss_G_SSIM_list.append(generator.get_loss(component='SSIM'))
+                    iteration_summary += 'loss G: %s' % generator.get_loss(pretty_printed=True)
+                else:
+                    generator.zero_grad()
+                    if frozen_generator:
+                        frozen_generator = discriminator.get_loss() > 0.33 and ((not use_D2) or discriminator2.get_loss() > 0.33)
+                p.print(iteration_summary)
+
+            # cleanup previous epochs
+            removed = delete_outperformed_models(dpath=model_dir, keepers=jsonsaver.get_best_steps(),
+                                       model_t='generator',
+                                       keep_all_output_images= nn_common.DebugOptions.KEEP_ALL_OUTPUT_IMAGES in debug_options)
+            p.print(f'delete_outperformed_models removed {removed}')
+
+            # Do validation
+            if args.validation_interval > 0 and epoch%args.validation_interval == 0:
+                validation_loss = validate_generator(generator, validation_set,
+                                                     output_to_dir=get_validation_dpath(epoch))
+                jsonsaver.add_res(epoch, {'validation_loss': validation_loss}, write=False)
+                p.print(f'Validation loss: {validation_loss}')
+            if args.test_interval > 0 and epoch%args.test_interval == 0:
+                test_loss = test_generator(generator, test_set, output_to_dir=get_test_dpath(epoch))
+                jsonsaver.add_res(epoch, {'test_loss': test_loss}, write=False)
+
+            p.print("Epoch %u summary:" % epoch)
+            p.print("Time elapsed (s): %u (epoch), %u (total)" % (time.time()-epoch_start_time,
+                                                                  time.time()-start_time))
+            p.print("Generator:")
+            if len(loss_G_SSIM_list) > 0:
+                p.print("Average SSIM loss: %f" % statistics.mean(loss_G_SSIM_list))
+                jsonsaver.add_res(epoch, {'train_SSIM_loss': statistics.mean(loss_G_SSIM_list)},
+                                  write=False)
+            if len(loss_G_list) > 0:
+                average_g_weighted_loss = statistics.mean(loss_G_list)
+                p.print("Average weighted loss: %f" % average_g_weighted_loss)
+                jsonsaver.add_res(
+                    epoch, {'train_weighted_loss': average_g_weighted_loss},
+                    write=False)
+                lr_loss = validation_loss if validation_loss is not None else average_g_weighted_loss
+
+                if len(generator_loss_hist) > 0 and max(generator_loss_hist) < lr_loss:
+                    generator_learning_rate = generator.update_learning_rate(args.reduce_lr_factor)
+                    p.print(f'Generator learning rate updated to {generator_learning_rate} because generator_loss_hist={generator_loss_hist} < lr_loss={lr_loss}')
+                generator_loss_hist.append(lr_loss)
+
+                # TODO reset to previous best (or init if epoch 1) if failed (eg lr_loss <= .4)
+
+                jsonsaver.add_res(
+                    epoch, {'gen_lr': generator_learning_rate},
+                    write=True)
+            else:
+                p.print("Generator learned nothing")
+            if use_D:
+                # TODO add discriminator(s) to jsonsaver and use for cleanup if plan to use those
+                p.print("Discriminator:")
+                if len(loss_D_list) > 0:
+                    average_d_loss = statistics.mean(loss_D_list)
+                    p.print("Average normalized loss: %f" % (average_d_loss))
+                    discriminator_learning_rate = discriminator.update_learning_rate(average_d_loss)
+                    discriminator.save_model(model_dir, epoch, 'discriminator')
+            if use_D2:
+                p.print("Discriminator2:")
+                if len(loss_D2_list) > 0:
+                    average_d2_loss = statistics.mean(loss_D2_list)
+                    p.print("Average normalized loss: %f" % (average_d2_loss))
+                    discriminator2_learning_rate = discriminator2.update_learning_rate(average_d2_loss)
+                    discriminator2.save_model(model_dir, epoch, 'discriminator2')
+            if not frozen_generator:
+                generator.save_model(model_dir, epoch, 'generator')
+            if args.time_limit and args.time_limit < time.time() - start_time:
+                p.print("Time is up")
+                exit(0)
+            if ((not use_D) or discriminator_learning_rate < args.min_lr) and generator_learning_rate < args.min_lr:
+                p.print("Minimum learning rate reached")
+                exit(0)
+
         

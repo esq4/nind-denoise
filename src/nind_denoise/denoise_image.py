@@ -10,7 +10,7 @@ TODO 16-bit input! (replace PIL with numpy)
 egrun:
     whole image (lots of memory):
 
-    python denoise_image.py --input img.tif --model_path ../../models/nind_denoise/2021-05-23T10\:16_nn_train.py_--config_configs-train_conf_unet.yaml_--debug_options_output_val_images_keep_all_output_images_--test_interval_0_--epochs_1000_--reduce_lr_factor_0.95_--patience_3/generator_250.pt --network UNet --cs 660 --ucs 470
+    python denoise_image.py --input img.tif --model_path ../../models/nind_denoise/2021-05-23T10:16_nn_train.py_--config_configs-train_conf_unet.yaml_--debug_options_output_val_images_keep_all_output_images_--test_interval_0_--epochs_1000_--reduce_lr_factor_0.95_--patience_3/generator_250.pt --network UNet --cs 660 --ucs 470
     cropping:
         TODO
 '''
@@ -21,6 +21,8 @@ import torchvision
 import torch
 import math
 from PIL import Image, ImageOps
+import cv2
+import exiv2
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import time
@@ -41,6 +43,12 @@ from common.libs import np_imgops
 CS_UNET, UCS_UNET = 440, 320
 CS_UTNET, UCS_UTNET = 504, 480
 CS_UNK, UCS_UNK = 512, 448
+
+
+# supress SourceChangeWarning
+import warnings
+from torch.serialization import SourceChangeWarning
+warnings.filterwarnings("ignore", category=SourceChangeWarning)
 
 
 def make_output_fpath(input_fpath, model_fpath):
@@ -167,7 +175,7 @@ class OneImageDS(Dataset):
             usefuldim = (self.pad, self.pad, self.cs-max(self.pad,x1pad), self.cs-max(self.pad,y1pad))
             usefulstart = (x0+self.pad, y0+self.pad)
         return torch.tensor(ret), torch.IntTensor(usefuldim), torch.IntTensor(usefulstart)
-    
+
     def __len__(self):
         return self.size
 
@@ -183,7 +191,6 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output', type=str, help='Output file with extension (default: model_dpath/test/denoised_images/fn.tif)')
     parser.add_argument('-b', '--batch_size', type=int, default=1)  # TODO >1 is broken
     parser.add_argument('--debug', action='store_true', help='Debug (store all intermediate crops in ./dbg, display useful messages)')
-    parser.add_argument('--cuda_device', '--device', default=0, type=int, help='Device number (default: 0, typically 0-3]], -1 for CPU)')
     parser.add_argument('--exif_method', default='piexif', type=str, help='How is exif data copied over? (piexif, exiftool, noexif)')
     parser.add_argument('--g_network', '--network', '--arch', type=str, help='Generator network (typically UNet or UtNet)')
     parser.add_argument('--model_path', help='Generator pretrained model path (.pth for model, .pt for dictionary), required')
@@ -192,11 +199,11 @@ if __name__ == '__main__':
     parser.add_argument('--whole_image', action='store_true', help='Ignore cs and ucs, denoise whole image')
     parser.add_argument('--pad', type=int, help='Padding amt per side, only used for whole image (otherwise (cs-ucs)/2')
     parser.add_argument('--models_dpath', help='Directory where all models are saved (used when a model name is provided as model_path)')
-    
+
     args, _ = parser.parse_known_args()
     assert args.model_path is not None
     autodetect_network_cs_ucs(args)
-    
+
     def make_seamless_edges(tcrop, x0, y0):
         if x0 != 0:#left
             tcrop[:,:,0:args.overlap] = tcrop[:,:,0:args.overlap].div(2)
@@ -208,12 +215,10 @@ if __name__ == '__main__':
             tcrop[:,-args.overlap:,:] = tcrop[:,-args.overlap:,:].div(2)
         return tcrop
 
-    if args.cuda_device >= 0:
-        torch.cuda.set_device(args.cuda_device)
-        torch.backends.cudnn.benchmark = True
-        torch.cuda.manual_seed(123)
+        if not torch.accelerator.is_available():
+            print("warning: PyTorch does not have access to an accelerator (means no gpu found probably). Defaulting to CPU.")
     torch.manual_seed(123)
-    device = pt_helpers.get_device(args.cuda_device)
+    device = torch.accelerator.current_accelerator()
     if args.output is None:
         args.output = make_output_fpath(args.input, args.model_path)
 
@@ -231,7 +236,7 @@ if __name__ == '__main__':
                          num_workers=0 if args.batch_size == 1 else max(min(args.batch_size, os.cpu_count()//4), 1),
                          drop_last=False, batch_size=args.batch_size, shuffle=False)
     topil = torchvision.transforms.ToPILImage()
-    fswidth, fsheight = Image.open(args.input).size
+    fsheight, fswidth = cv2.imread(args.input, -1).shape[0:2]
     newimg = torch.zeros(3, fsheight, fswidth, dtype=torch.float32)
 
     start_time = time.time()
@@ -242,7 +247,8 @@ if __name__ == '__main__':
             sys.exit(f'denoise_image.py: {ybatch.shape=}, {math.prod(ybatch.shape)=} > {args.max_subpixels=} for {args.input=}; aborting')
         ybatch = ybatch.to(device)
         xbatch = model(ybatch)
-        torch.cuda.synchronize()
+        if torch.accelerator.is_available():
+            torch.accelerator.synchronize()
         for i in range(ybatch.size(0)):
             ud = usefuldims[i]
             # pytorch represents images as [channels, height, width]
@@ -269,7 +275,11 @@ if __name__ == '__main__':
     if args.output[:-4] == '.jpg' and args.exif_method == 'piexif':
         piexif.transplant(args.input, args.output)
     elif args.exif_method != 'noexif':
-        cmd = ['exiftool', '-TagsFromFile', args.input, args.output, '-all', '-icc_profile', '-overwrite_original']
-        subprocess.run(cmd)
+        exiv_src = exiv2.ImageFactory.open(args.input)
+        exiv_src.readMetadata()
+        exiv_dst = exiv2.ImageFactory.open(args.output)
+        exiv_dst.setExifData(exiv_src.exifData())
+        exiv_dst.writeMetadata()
+
     print(f'Wrote denoised image to {args.output}')
     print('Elapsed time: '+str(time.time()-start_time)+' seconds')
