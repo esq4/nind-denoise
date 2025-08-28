@@ -50,21 +50,8 @@ def get_losses(img1_fpath, img2_fpath):
     return res
 
 def get_device(device_n=None):
-    """get device given index (-1 = CPU)"""
-    if isinstance(device_n, torch.device):
-        return device_n
-    elif isinstance(device_n, str):
-        if device_n == 'cpu':
-            return torch.device('cpu')
-        device_n = int(device_n)
-    if device_n is None:
-        if torch.xpu.is_available():
-            return torch.device("xpu")
-        else:
-            print('get_device: xpu not available; defaulting to cpu')
-            return torch.device("cpu")
-    elif torch.xpu.is_available() and device_n >= 0:
-        return torch.device("xpu:%i" % device_n)
-    elif device_n >= 0:
-        print('get_device: xpu not available')
-    return torch.device('cpu')
+    if (current_device := torch.accelerator.current_accelerator(check_available=True)) is not None:
+        return current_device
+    else:
+        print('Accelerator (gpu/xpu/etc.) device not available; defaulting to cpu.')
+        return torch.device("cpu")

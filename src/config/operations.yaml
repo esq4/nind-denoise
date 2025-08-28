@@ -1,0 +1,73 @@
+operations:
+  first_stage:
+  - channelmixerrgb
+  - colorin
+  - colorout
+  - demosaic
+  - flip
+  - gamma
+  - highlights
+  - hotpixels
+  - mask_manager
+  - rawprepare
+  - temperature
+  second_stage:
+  - ashift
+  - bilat
+  - blurs
+  - borders
+  - colorbalancergb
+  - colorin
+  - colorout
+  - crop
+  - cacorrectrgb
+  - clahe
+  - denoiseprofile
+  - diffuse
+  - dither
+  - exposure
+  - filmicrgb
+  - flip
+  - gamma
+  - hazeremoval
+  - invert
+  - lens
+  - levels
+  - liquify
+  - lowlight
+  - lut3d
+  - mask_manager
+  - monochrome
+  - nlmeans
+  - rgbcurve
+  - rgblevels
+  - rotatepixels
+  - scalepixels
+  - shadhi
+  - sharpen
+  - soften
+  - splittoning
+  - spots
+  - tonecurve
+  - tonemap
+  - toneequal
+  - velvia
+  - vibrance
+  - vignette
+  - watermark
+  - zonesystem
+overrides:
+  colorin:
+    darktable:blendop_params: gz11eJxjYIAACQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dcF/IADRAGpyHQU=
+    darktable:blendop_version: '14'
+    darktable:enabled: '1'
+    darktable:modversion: '7'
+    darktable:multi_name: ''
+    darktable:multi_name_hand_edited: '0'
+    darktable:multi_priority: '0'
+    darktable:num: '0'
+    darktable:operation: colorin
+    darktable:params: gz48eJxjZBgFowABWAbaAaNgwAEAEDgABg==
+commands:
+  nind_denoise: "src/nind_denoise/denoise_image.py"
+  model_path: "src/nind_denoise/models/2021-06-14T20_27_nn_train/generator_650.pt"
