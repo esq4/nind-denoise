@@ -15,31 +15,28 @@ egrun:
         TODO
 '''
 
-import os
-import argparse
-import torchvision
-import torch
 import math
-from PIL import Image, ImageOps
+import os
+import time
+
+import configargparse
 import cv2
 import exiv2
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-import time
-import configargparse
-from nn_common import Model
+import torch
+import torchvision
+from torch.utils.data import DataLoader, Dataset
+
 try:
     import piexif   # TODO make it optional
 except ImportError:
     pass
-import subprocess
 import numpy as np
 import sys
 sys.path.append('..')
-from common.libs import pt_helpers
-from common.libs import utilities
-from nind_denoise import nn_common
-from common.libs import np_imgops
+from common.libs import np_imgops, pt_helpers, utilities
+#from nn_common import Model
+import nn_common
+
 CS_UNET, UCS_UNET = 440, 320
 CS_UTNET, UCS_UTNET = 504, 480
 CS_UNK, UCS_UNK = 512, 448
@@ -179,8 +176,8 @@ class OneImageDS(Dataset):
     def __len__(self):
         return self.size
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     parser = configargparse.ArgumentParser(description=__doc__, default_config_files=[
         nn_common.COMMON_CONFIG_FPATH],
         config_file_parser_class=configargparse.YAMLConfigFileParser)
@@ -215,8 +212,8 @@ if __name__ == '__main__':
             tcrop[:,-args.overlap:,:] = tcrop[:,-args.overlap:,:].div(2)
         return tcrop
 
-        if not torch.accelerator.is_available():
-            print("warning: PyTorch does not have access to an accelerator (means no gpu found probably). Defaulting to CPU.")
+    if not torch.accelerator.is_available():
+        print("warning: PyTorch does not have access to an accelerator (means no gpu found probably). Defaulting to CPU.")
     torch.manual_seed(123)
     device = torch.accelerator.current_accelerator()
     if args.output is None:
@@ -226,7 +223,7 @@ if __name__ == '__main__':
     if args.model_parameters is None and 'activation' in args.model_path:
         args.model_parameters = f"activation={args.model_path.split('activation')[-1].split('_')[1].split('_')[0]}"
         print(f'set model_parameters to {args.model_parameters} based on model_path')
-    model = Model.instantiate_model(network=args.g_network, model_path=args.model_path,
+    model = nn_common.Model.instantiate_model(network=args.g_network, model_path=args.model_path,
                                     strparameters=args.model_parameters, keyword='generator',
                                     device=device, models_dpath=args.models_dpath)
     model.eval()  # evaluation mode
@@ -283,3 +280,4 @@ if __name__ == '__main__':
 
     print(f'Wrote denoised image to {args.output}')
     print('Elapsed time: '+str(time.time()-start_time)+' seconds')
+    #TODO: make this return something ideally useful

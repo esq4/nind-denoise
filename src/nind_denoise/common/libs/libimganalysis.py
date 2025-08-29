@@ -10,7 +10,8 @@ except ModuleNotFoundError:
     print('filter_dataset_by_iso.py: warning: piexif library not found, using exiftool instead')
 import sys
 sys.path.append('..')
-from common.libs import pt_helpers
+from nind_denoise.common.libs import pt_helpers
+
 
 def piqa_msssim(img1path: str, img2path: str):
     img1 = pt_helpers.fpath_to_tensor(img1path, batch=True)

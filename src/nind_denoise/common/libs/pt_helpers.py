@@ -1,14 +1,14 @@
 import torch
 import cv2
-import tifffile
 import imageio
 from PIL import Image
 import torchvision
 import numpy as np
-import sys, os
+import sys
+
 sys.path.append('..')
-from common.libs import np_imgops
-from common.libs import pt_losses
+from . import np_imgops, pt_losses
+
 
 def fpath_to_tensor(img_fpath, device=torch.device(type='cpu'), batch=False):
     #totensor = torchvision.transforms.ToTensor()

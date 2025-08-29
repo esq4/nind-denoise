@@ -69,5 +69,4 @@ overrides:
     darktable:operation: colorin
     darktable:params: gz48eJxjZBgFowABWAbaAaNgwAEAEDgABg==
 commands:
-  nind_denoise: "src/nind_denoise/denoise_image.py"
   model_path: "src/nind_denoise/models/2021-06-14T20_27_nn_train/generator_650.pt"

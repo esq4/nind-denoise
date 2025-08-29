@@ -28,11 +28,7 @@ from typing import Optional, List
 from PIL import Image # only used for experimental JPEG compression artifact removal
 import sys
 sys.path.append('..')
-from common.libs import np_imgops
-from common.libs import pt_ops
-from common.libs import pt_helpers
-from common.libs import libimganalysis
-from common.libs import utilities
+from nind_denoise.common.libs import libimganalysis, np_imgops, pt_helpers, pt_ops, utilities
 
 FS_DS_DPATH = os.path.join('..', '..', 'datasets', 'NIND')
 CROPPED_DS_DPATH = os.path.join('..', '..', 'datasets', 'cropped')

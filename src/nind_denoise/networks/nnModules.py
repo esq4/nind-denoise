@@ -1,11 +1,12 @@
 # Used by run_nn.py
 
-import torch.nn as nn
-import torch.nn.init as init
 from math import floor
-import torch.nn.functional as F
+
 import torch
-from nind_denoise.networks.Hul import Hul112Disc, Hulb128Net, Hulb112Disc, Hulbs128Net, Hull112Disc
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.nn.init as init
+
 
 def init_weights(m):
     if type(m) == nn.Linear:

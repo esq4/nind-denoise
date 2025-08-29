@@ -1,25 +1,23 @@
-import torch
-import math
-import torchvision
-#from networks.p2p_networks import define_D
-import os
-import time
-import yaml
-from enum import Enum
 import json
+import math
+# from networks.p2p_networks import define_D
+import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import time
+from enum import Enum
+
+import torch
+import torchvision
+import yaml
+from networks.UtNet import UtNet # needed for globals()
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 #from nind_denoise.lib import pytorch_ssim
-from nind_denoise.networks.Hul import Hulb128Net, Hul112Disc, Hulf112Disc
-from nind_denoise.networks.ThirdPartyNets import PatchGAN, UNet, MobileNetV3, deeplabv3_resnet101
-from nind_denoise.networks.UtNet import UtNet
 #from nind_denoise.networks.MIRNet import MIRNet (huge VRAM, bs=2, nope?)
 
 try:
     from common.libs import pt_losses
 except ModuleNotFoundError as e:
     print(f'nn_common: import error, (MS-)SSIM loss is not available without the piqa library ({e})')
-from common.libs import pt_helpers
 
 COMMON_CONFIG_FPATH = os.path.join('configs', 'common_conf_default.yaml')
 # FIXME: losses

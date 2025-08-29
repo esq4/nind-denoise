@@ -43,8 +43,7 @@ import sys
 sys.path.append('..')
 from nind_denoise import dataset_torch_3
 from nind_denoise import nn_common
-from common.libs import pt_ops
-from common.libs import json_saver
+from nind_denoise.common.libs import json_saver, pt_ops
 
 DEFAULT_CONFIG_FPATH = os.path.join('configs', 'train_conf_defaults.yaml')
 

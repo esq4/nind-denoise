@@ -15,7 +15,7 @@ sys.path.append('..')
 from nind_denoise import nn_common
 from nind_denoise import dataset_torch_3
 from nind_denoise.nn_train import DEFAULT_CONFIG_FPATH
-from common.libs import utilities
+from nind_denoise.common.libs import utilities
 
 parser = configargparse.ArgumentParser(description=__doc__, default_config_files=[
     nn_common.COMMON_CONFIG_FPATH, DEFAULT_CONFIG_FPATH],

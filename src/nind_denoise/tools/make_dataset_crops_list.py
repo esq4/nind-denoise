@@ -9,8 +9,8 @@ sys.path.append('..')
 from nind_denoise import dataset_torch_3
 from nind_denoise import nn_common
 from nind_denoise import nn_train
-from common.libs import utilities
-            
+from nind_denoise.common.libs import utilities
+
 if __name__ == '__main__':
     
     # Training settings

@@ -31,7 +31,7 @@ Options:
   --version                             Show version.
   -h --help                             Show this screen.
 """
-
+import torch.hub
 from docopt import docopt
 import os, sys, subprocess, shutil
 from bs4 import BeautifulSoup
@@ -198,22 +198,20 @@ if __name__ == '__main__':
 
         if os.path.exists(denoised_filename):
             os.remove(denoised_filename)
-        model_path = os.path.relpath(var['commands']['model_path'])
+        model_path = os.path.abspath("src/nind_denoise/models/2021-06-14T20_27_nn_train/generator_650.pt")
         # TODO: pytorch.hub is probably the easy-mode path to a simpler inference codebase, w/o moving away from pytorch
         if not os.path.exists(model_path):
             from torch import hub
             hub.download_url_to_file(
                 "https://f005.backblazeb2.com/file/modelzoo/nind/generator_650.pt", model_path
             )
-        subprocess.run(['python', os.path.relpath(var['commands']['nind_denoise']),
-                        '--network', 'UtNet',
-                        '--model_path', os.path.relpath("src/nind_denoise/models/2021-06-14T20_27_nn_train/generator_650.pt"),
-                        '--input',
-                        s1_filename,
-                        '--output',
-                        denoised_filename,
-                        ])
 
+        subprocess.run([sys.executable, os.path.abspath("src/nind_denoise/denoise_image.py"),
+                        '--network', 'UtNet',
+                        '--model_path', model_path,
+                        '--input', s1_filename,
+                        '--output', denoised_filename
+                        ])
         if not os.path.exists(denoised_filename):
             print("Error: denoised image not found: ", denoised_filename)
             raise Exception
@@ -290,3 +288,25 @@ if __name__ == '__main__':
 
         if (s2_filename != out_filename and os.path.exists(s2_filename)):
             os.remove(s2_filename)
+
+class denoiser:
+    """ A class that implements an inferencer to short-circuit the nind_denoise dependency. Attempts to load a model
+    from `path`. Failing that it will default to downloading a NIND pretrained model from a backblaze bucket or other
+    `url`. If, however, `url=None` is explicitly passed it will initialize empty. Tooling to handle this usecase not yet
+     implemented.
+    """
+    def __init__(self, path=None, url="https://f005.backblazeb2.com/file/modelzoo/nind/generator_650.pt",force=False):
+        self.path = os.path.relpath(path) if path is not None else path
+        self.device = torch.accelerator.current_accelerator() if torch.accelerator.current_accelerator() is not None else torch.device('cpu')
+        # TODO: pytorch.hub is probably the easy-mode path to a simpler inference codebase, w/o moving away from pytorch
+        from torch import hub
+        if not (os.path.exists(path) or force) and url is not None:
+            self.url = url
+            hub.download_url_to_file(
+                self.url, self.path
+            )
+        else:
+            self.url = None
+        self.model = torch.load(self.path, map_location=self.device)
+
+""" TODO: pull in the rest of the needed functionality from denoise_image.py."""
