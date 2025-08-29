@@ -238,7 +238,7 @@ if __name__ == '__main__':
         subprocess.run([cmd_darktable,
                         denoised_filename,
                         os.path.abspath(basename + '.s2.xmp'),
-                        os.path.abspath(out_filename),
+                        os.path.abspath(s2_filename),
                          '--icc-intent', 'PERCEPTUAL', '--icc-type', 'SRGB',
                         '--apply-custom-presets', 'false',
                         '--core', '--conf', 'plugins/imageio/format/tiff/bpp=16'
