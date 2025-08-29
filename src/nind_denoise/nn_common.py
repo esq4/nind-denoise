@@ -119,6 +119,7 @@ class Model:
         instantiate the internal model used by a Model object
         '''
         model = None
+        device = torch.device('cpu') if device is None else device
         if strparameters is not None and strparameters != "":
             parameters.update(dict([parameter.split('=') for parameter in strparameters.split(',')]))
         if model_path is not None:

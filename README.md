@@ -28,7 +28,7 @@ $ python3 src/denoise.py "/path/to/photo0123.RAW"
 
  Make sure the right drivers for your system are installed along with OpenCL. 
  This varies by distribution but should look something like (this is arch linux) 
- ```intel-compute-runtime```, ```extra/intel-graphics-compiler```, ```vulkan-intel``` and ```onednn```.
+ `opencl-headers`, ```intel-compute-runtime```, ```extra/intel-graphics-compiler```, ```vulkan-intel``` and ```onednn```.
  I'm not sure if all of those are required - but it's a place to start. Proper operation can be verified with:
  ```clinfo | grep device```
 
@@ -86,26 +86,24 @@ Installing required packages into your `venv` should be the same for all operati
 tweaked to match your hardware (_i.e.,_ GPU or lack thereof). This command _should_ work for all, but if it doesn't 
 just scroll down and pick the right one yourself. 
 
-_Note:_ You probably need to add `--upgrade` if you're trying to replace packages and nothing is happening 
-
 ```console
-$ uv add -r requirements.in
+$ uv add -r requirements.in --upgrade
 ```
 
 ### nVIDIA CUDA
 For CUDA 12.9, you would do:
 ```
-uv add -r requirements.in --index "https://download.pytorch.org/whl/cu129"
+uv add -r requirements.in --index "https://download.pytorch.org/whl/cu129 --upgrade"
 ```
 
 ### Intel GPU
 ```
-uv add -r requirements.in --index "https://download.pytorch.org/whl/xpu"
+uv add -r requirements.in --index "https://download.pytorch.org/whl/xpu --upgrade"
 ```
 
 ### AMD ROCM
 ```
-uv add -r requirements.in --index "https://download.pytorch.org/whl/rocm6.3"
+uv add -r requirements.in --index "https://download.pytorch.org/whl/rocm6.3 --upgrade"
 ```
 
 ## Citations
