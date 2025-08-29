@@ -114,7 +114,7 @@ class Model:
             exit(0)
 
     @staticmethod
-    def instantiate_model(models_dpath, model_path=None, network=None, device=torch.accelerator.current_accelerator(), strparameters=None, pfun=print, keyword='', **parameters):
+    def instantiate_model(models_dpath, model_path=None, network=None, device=torch.accelerator.current_accelerator(check_available=True), strparameters=None, pfun=print, keyword='', **parameters):
         '''
         instantiate the internal model used by a Model object
         '''
