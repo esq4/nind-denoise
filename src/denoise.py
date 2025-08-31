@@ -8,7 +8,7 @@ Denoise the raw image denoted by <filename> and save the results.
 Usage:
     denoise.py [-o <outpath> | --output-path=<outpath>] [-e <e> | --extension=<e>]
                     [-d <darktable> | --dt=<darktable>] [-g <gmic> | --gmic=<gmic>] [ -q <q> | --quality=<q>]
-                    [--nightmode --no_deblur --sigma=<sigma> --iterations=<iter> --debug]
+                    [--nightmode ] [ --no_deblur ] [ --debug ] [ --sigma=<sigma> ] [ --iterations=<iter> ]
                     [-v | --verbose] <raw_image>
     denoise.py (help | -h | --help)
     denoise.py --version
@@ -21,12 +21,12 @@ Options:
   -d <darktable> --dt=<darktable>       Path to darktable-cli. On windows change to 'C:/Program Files/darktable/bin/darktable-cli.exe'. [default: '/usr/bin/darktable-cli'].
   -g <gmic> --gmic=<gmic>               Path to gmic. Will need to be manually entered on windows. [default: '/usr/bin/gmic'].
   -q <q> --quality=<q>                  JPEG compression quality. Lower produces a smaller file at the cost of more artifacts. [default: 90].
-  --nightmode=<n>                       Use for very dark images. Normalizes brightness (exposure, tonequal) before denoise [default: False].
+  --nightmode                           Use for very dark images. Normalizes brightness (exposure, tonequal) before denoise [default: False].
   --no_deblur                           Do not perform RL-deblur [default: false].
+  --debug                               Keep intermedia files.
   --sigma=<sigma>                       sigma to use for RL-deblur. Acceptable values are ....? [default: 1].
   --iterations=<iter>                   Number of iterations to perform during RL-deblur. Suggest keeping this to ...? [default: 10].
 
-  --debug                               Keep intermedia files.
   -v --verbose
   --version                             Show version.
   -h --help                             Show this screen.
@@ -64,10 +64,11 @@ if __name__ == '__main__':
         print("\nError: darktable-cli (" + cmd_darktable + ") does not exist or not accessible.")
         raise Exception
 
+    # figure out whether to run deblur with gmic
     cmd_gmic = args["gmic"] if "gmic" in args.keys() else \
         ("C:\\Users\\Rengo\\AppData\\Roaming\\GIMP\\3.0\\plug-ins\\gmic_gimp_qt\\gmic_gimp_qt.exe" if os.name == "nt" \
              else "/usr/bin/gmic") #TODO: needs to be fixed to use generic user path
-    if not os.path.exists(cmd_gmic ):
+    if not os.path.exists(cmd_gmic) or "no_deblur" in args.keys():
         print("\nWarning: gmic (" + cmd_gmic+ ") does not exist, disabled RL-deblur")
         rldeblur = False
     else: rldeblur = True

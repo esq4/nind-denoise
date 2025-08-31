@@ -26,17 +26,36 @@ $ python3 src/denoise.py "/path/to/photo0123.RAW"
 
 # Requirements
 
- Make sure the right drivers for your system are installed along with OpenCL. 
- This varies by distribution but should look something like (this is arch linux) 
- `opencl-headers`, ```intel-compute-runtime```, ```extra/intel-graphics-compiler```, ```vulkan-intel``` and ```onednn```.
- I'm not sure if all of those are required - but it's a place to start. Proper operation can be verified with:
- ```clinfo | grep device```
+ - Darktable, and raw images processed with darktable to operate on, along with their .xmp files
+ - uv (or pip, or whichever you prefer)
+ - The correct gpu drivers for your system are installed along with OpenCL.
+ - The oldest linux kernel confirmed working with intel's xpu acceleration is 6.14. So try and get one at least that 
+new. 
 
+### nVidia
+ - Driver + CUDA
+
+### AMD
+ - (Untested as of yet) Possibly just a driver, possibly also ROCm-flavored openCL. Might not actually work. 
+
+### Intel
+ - Intel is slightly trickier, with version mismatches between system packages and venv packages causing memory 
+alignment issues. Or so it seems. The working strategy is to install the minimum necessary and let uv/pip pull in the 
+majority of dependencies inside the venv. Intel has a [guide](https://dgpu-docs.intel.com/driver/client/overview.html)
+that details what you need for ubuntu that should give you an idea. Make sure not to overlook the bit that says _"However,
+if you plan to use PyTorch, install `libze-dev` and `intel-ocloc` \[as well]"_ On arch linux start with 
+ - `intel-compute-runtime`, `level-zero-loader` and `level-zero-headers`
+
+
+
+Proper operation can be verified with:
+ `clinfo | grep device` and `darktable-cltest`
 
 # Installation:
 
 Warning: this is a prototype developmental codebase. 
-The following should be considered developer documentation; it is not a user install guide.
+The following should be considered developer documentation (or at least for only those willing to experiment); it is not
+yet a polished end user install guide.
 
 
 To install, run the following commands. This should pull the right version of PyTorch for your gpu/cpu/xpu/whatever, but
@@ -80,7 +99,7 @@ otherwise out of water, go [here](https://docs.astral.sh/uv/pip/environments/#us
 [user@linux]$
  ```
 
-## 3 Install requirements
+## 3 Install required python packages
 
 Installing required packages into your `venv` should be the same for all operating systems, but it may have to be 
 tweaked to match your hardware (_i.e.,_ GPU or lack thereof). This command _should_ work for all, but if it doesn't 
@@ -103,7 +122,7 @@ uv add -r requirements.in --index "https://download.pytorch.org/whl/xpu --upgrad
 
 ### AMD ROCM
 ```
-uv add -r requirements.in --index "https://download.pytorch.org/whl/rocm6.3 --upgrade"
+uv add -r requirements.in --index "https://download.pytorch.org/whl/rocm6.4 --upgrade"
 ```
 
 ## Citations
