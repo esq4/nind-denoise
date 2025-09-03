@@ -7,14 +7,12 @@ Benoit Brummer's [NIND Denoise](https://github.com/trougnouf/nind-denoise.git), 
 
 This fork seeks make their work easier to experiment with, and to make it accessible to a wider audience. 
 - Improved code portability via ```torch.accelerator```. 
-  - In addition to supporting cpu-only and nVidia GPUs, this adds support for AMD & Intel GPU's, among others. Denoising (on Intel Xe MAX) is about 6x
-  faster than on cpu, but still slower than using CUDA. (YMMV) 
+  - In addition to supporting cpu-only and nVidia GPUs, this adds support for AMD & Intel GPU's, among others. Denoising
+ (on my Intel Xe MAX) is about 6x faster than on cpu, but still slower than using CUDA. (YMMV) 
 - Documented installation process on Windows and linux 
   - Installs in a python virtual environment with [uv](https://github.com/astral-sh/uv)
   - Autodownload pretrained model weights from backblaze b2 -> simpler installation
   - To uninstall, just delete the directory.
-
-- [...loading]
 
 # Usage
 
@@ -24,11 +22,43 @@ To denoise an image, run:
 $ python3 src/denoise.py "/path/to/photo0123.RAW"
 ```
 
+Full usage:
+
+```python
+"""
+Usage:
+    denoise.py [-o <outpath> | --output-path=<outpath>] [-e <e> | --extension=<e>]
+                    [-d <darktable> | --dt=<darktable>] [-g <gmic> | --gmic=<gmic>] [ -q <q> | --quality=<q>]
+                    [--nightmode ] [ --no_deblur ] [ --debug ] [ --sigma=<sigma> ] [ --iterations=<iter> ]
+                    [-v | --verbose] <raw_image>
+    denoise.py (help | -h | --help)
+    denoise.py --version
+
+Options:
+
+
+  -o <outpath> --output-path=<outpath>  Where to save the result (defaults to current directory)).
+  -e <e> --extension=<e>                Output file extension. Supported formats are ....? [default: jpg].
+  --dt=<darktable>                      Path to darktable-cli. Use this only if not automatically found.
+  -g <gmic> --gmic=<gmic>               Path to gmic. Use this only if not automatically found.
+  -q <q> --quality=<q>                  JPEG compression quality. Lower produces a smaller file at the cost of more artifacts. [default: 90].
+  --nightmode                           Use for very dark images. Normalizes brightness (exposure, tonequal) before denoise [default: False].
+  --no_deblur                           Do not perform RL-deblur [default: false].
+  --debug                               Keep intermedia files.
+  --sigma=<sigma>                       sigma to use for RL-deblur. Acceptable values are ....? [default: 1].
+  --iterations=<iter>                   Number of iterations to perform during RL-deblur. Suggest keeping this to ...? [default: 10].
+
+  -v --verbose
+  --version                             Show version.
+  -h --help                             Show this screen.
+"""
+```
+
 # Requirements
 
  - Darktable, and raw images processed with darktable to operate on, along with their .xmp files
  - gmic; on windows go [here](https://gmic.eu/download.html) and scroll down to get the "gmic-cli" version. extract to
- your home directory or be prepared to find the exectable and pass its location to denoise.py
+ your home directory or be prepared to find the executable and pass its location to denoise.py
  - [variant-enabled](https://astral.sh/blog/wheel-variants) uv
  - The correct gpu drivers for your system are installed along with OpenCL.
  - The oldest linux kernel confirmed working with intel's xpu acceleration is 6.14. So try and get one at least that 
@@ -69,7 +99,7 @@ Good luck. Check out https://download.pytorch.org/whl/torch/ if you want to see 
 
 ### 1 - Clone this repo
 
-```bash
+```console
 git clone https://github.com/commreteris/nind-denoise.git
 cd nind-denoise
 ```
