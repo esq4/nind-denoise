@@ -93,11 +93,7 @@ Warning: this is a prototype developmental codebase.
 The following should be considered developer documentation (or at least for only those willing to experiment); it is not
 yet a polished end user install guide.
 
-To install, run the following commands. This should pull the right version of PyTorch for your gpu/cpu/xpu/whatever, but
-if it doesn't, or you just want to avoid the possibility of iterating, continue reading below for how to modify to match
-your hardware/environment. 
-
-Good luck. Check out https://download.pytorch.org/whl/torch/ if you want to see a list of pytorch versions. 
+To install, run the following commands. Good luck.
 
 ### 1 - Clone this repo
 
