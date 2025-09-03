@@ -258,7 +258,7 @@ if __name__ == '__main__':
 
             subprocess.run([cmd_gmic, s2_filename,
                             '-deblur_richardsonlucy', str(sigma) + ',' + str(iteration) + ',' + '1',
-                            #'-/ 256 cut 0,255 round',
+                            '-/', '256', 'cut', '0,255', 'round',
                             '-o', tmp_rl_filename + ',' + str(quality) #
                              ], cwd=outpath)
 
