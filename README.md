@@ -7,8 +7,8 @@ Benoit Brummer's [NIND Denoise](https://github.com/trougnouf/nind-denoise.git), 
 
 This fork seeks make their work easier to experiment with, and to make it accessible to a wider audience. 
 - Improved code portability via ```torch.accelerator```. 
-  - In addition to supporting cpu-only and NVIDIA GPUs, this adds support for AMD & Intel GPU's, among others. Denoising (on mine) is about 6x
-  faster than on cpu. (YMMV) 
+  - In addition to supporting cpu-only and nVidia GPUs, this adds support for AMD & Intel GPU's, among others. Denoising (on Intel Xe MAX) is about 6x
+  faster than on cpu, but still slower than using CUDA. (YMMV) 
 - Documented installation process on Windows and linux 
   - Installs in a python virtual environment with [uv](https://github.com/astral-sh/uv)
   - Autodownload pretrained model weights from backblaze b2 -> simpler installation
