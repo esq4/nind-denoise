@@ -2,17 +2,21 @@ nind-denoise
 ==============
 
 A pytorch based image denoising tool for the removal of noise from real photographs. Implements the models developed in    
-Benoit Brummer's [NIND Denoise](https://github.com/trougnouf/nind-denoise.git), and the 
-[Darktable](https://github.com/darktable-org/darktable) workflow pioneered by [Huy Hoang](https://github.com/hqhoang).
+Benoit Brummer's [NIND Denoise](https://github.com/trougnouf/nind-denoise.git), and the [Darktable](https://github.com/darktable-org/darktable) workflow pioneered by [Huy Hoang](https://github.com/hqhoang).
 
-This fork seeks make their work easier to experiment with, and to make it accessible to a wider audience. 
-- Improved code portability via ```torch.accelerator```. 
-  - In addition to supporting cpu-only and nVidia GPUs, this adds support for AMD & Intel GPU's, among others. Denoising
- (on my Intel Xe MAX) is about 6x faster than on cpu, but still slower than using CUDA. (YMMV) 
+This fork seeks make their work easier to experiment with and accessible to a wider audience. Notable changes include:
+- Support for most hardware via ```torch.accelerator```
+  - In addition to cpu-only (universal) and nVidia GPU acceleration, acceleration with Intel XPU(GPU)'s also works.
+    - Denoising (on my Intel Xe MAX) is about 6x faster than on cpu, but still slower than using CUDA. (YMMV) 
+  - Support for acceleration with AMD GPUs is untested but should work. 
+  - I have no way to hash out the details to get this working on MacOS, but it should be 
+[possible](https://developer.apple.com/metal/pytorch/)
+
 - Documented installation process on Windows and linux 
   - Installs in a python virtual environment with [uv](https://github.com/astral-sh/uv)
-  - Autodownload pretrained model weights from backblaze b2 -> simpler installation
-  - To uninstall, just delete the directory.
+  - Transparently & automatically downloads a pretrained model from a backblaze b2 bucket -> simpler installation
+
+To uninstall, just delete the directory.
 
 # Usage
 
@@ -20,6 +24,12 @@ To denoise an image, run:
 
 ```console
 $ python3 src/denoise.py "/path/to/photo0123.RAW"
+```
+**Note:** On windows, if you use forward  _do not_ use single forward slashes for paths. Double is OK:
+
+```powershell 
+PS> python3 src\\denoise.py "\bad\path\to\photo0123.RAW"
+PS> python3 src\\denoise.py "\\good\\path\\to\\photo0123.RAW"
 ```
 
 Full usage:
