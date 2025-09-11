@@ -1,0 +1,26 @@
+valid_extensions:
+  - 3FR
+  - ARW
+  - SR2
+  - SRF
+  - CR2
+  - CR3
+  - CRW
+  - DNG
+  - ERF
+  - FFF
+  - MRW
+  - NEF
+  - NRW
+  - ORF
+  - PEF
+  - RAF
+  - RW2
+
+tools:
+  windows:
+    darktable: "C:\\Program Files\\darktable\\bin\\darktable-cli.exe"
+    gmic: "~\\gmic-3.6.1-cli-win64\\gmic.exe"
+  posix:
+    darktable: "/usr/bin/darktable-cli"
+    gmic: "/usr/bin/gmic"

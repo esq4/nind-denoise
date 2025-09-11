@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<x:xmpmeta xmlns:x='adobe:ns:meta/' xmlns:darktable='http://darktable.sf.net/' xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+  <rdf:RDF>
+    <rdf:Description darktable:iop_order_version='3' darktable:iop_order_list='demosaic,0,colorin,0,flip,0'>
+      <darktable:history>
+        <rdf:li darktable:num='1' darktable:operation='demosaic' darktable:enabled='1'/>
+        <rdf:li darktable:num='2' darktable:operation='colorin' darktable:enabled='1'/>
+        <rdf:li darktable:num='3' darktable:operation='flip' darktable:enabled='1'/>
+      </darktable:history>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>

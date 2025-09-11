@@ -42,15 +42,24 @@ import yaml
 from bs4 import BeautifulSoup
 from docopt import docopt
 
-# define RAW extensions
-valid_extensions = [
-    '.' + item.lower()
-    if item[0] != '.'
-    else item.lower()
-    for item in
-    ['3FR', 'ARW', 'SR2', 'SRF', 'CR2', 'CR3', 'CRW', 'DNG', 'ERF', 'FFF', 'MRW', 'NEF', 'NRW', 'ORF', 'PEF', 'RAF',
-     'RW2']
-]
+# load CLI config (valid extensions, tool defaults) from YAML
+
+def _load_cli_config(path: str | None = None) -> dict:
+    cfg_path = pathlib.Path(path or 'src/config/cli.yaml')
+    if cfg_path.is_file():
+        try:
+            with io.open(cfg_path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            return {}
+    return {}
+
+_cli_cfg = _load_cli_config()
+
+# define RAW extensions from config with safe fallback
+_default_exts = ['3FR', 'ARW', 'SR2', 'SRF', 'CR2', 'CR3', 'CRW', 'DNG', 'ERF', 'FFF', 'MRW', 'NEF', 'NRW', 'ORF', 'PEF', 'RAF', 'RW2']
+_exts = _cli_cfg.get('valid_extensions') or _default_exts
+valid_extensions = [('.' + e.lower()) if not e.startswith('.') else e.lower() for e in _exts]
 
 
 def check_good_input(path: pathlib.Path, extensions=None) -> bool:
@@ -286,7 +295,7 @@ def get_command_paths(args):
 
     This function determines and returns the paths to `darktable-cli` and
     `gmic` based on the provided arguments or default locations depending on
-    the operating system.
+    the operating system or CLI YAML configuration (src/config/cli.yaml).
 
     :param args: Dictionary containing command-line arguments.
     :type args: dict
@@ -300,10 +309,28 @@ def get_command_paths(args):
        directories, but may require customization depending on the user's setup.
 
     """
-    return args["--dt"] if args["--dt"] else (
-        "C:/Program Files/darktable/bin/darktable-cli.exe" if os.name == "nt" else "/usr/bin/darktable-cli"), \
-           args["--gmic"] if args["--gmic"] else (
-        os.path.join(os.path.expanduser("~\\"), "gmic-3.6.1-cli-win64\\gmic.exe") if os.name == "nt" else "/usr/bin/gmic")
+    if args.get("--dt"):
+        dt = args["--dt"]
+    else:
+        # prefer YAML if present
+        if os.name == 'nt':
+            dt = (_cli_cfg.get('tools', {}).get('windows', {}).get('darktable')
+                  or "C:/Program Files/darktable/bin/darktable-cli.exe")
+        else:
+            dt = (_cli_cfg.get('tools', {}).get('posix', {}).get('darktable')
+                  or "/usr/bin/darktable-cli")
+
+    if args.get("--gmic"):
+        gmic = args["--gmic"]
+    else:
+        if os.name == 'nt':
+            gmic = (_cli_cfg.get('tools', {}).get('windows', {}).get('gmic')
+                    or "~\\gmic-3.6.1-cli-win64\\gmic.exe")
+            gmic = os.path.expanduser(gmic)
+        else:
+            gmic = (_cli_cfg.get('tools', {}).get('posix', {}).get('gmic')
+                    or "/usr/bin/gmic")
+    return pathlib.Path(dt), pathlib.Path(gmic)
 
 def denoise_file(_args: dict, _input_path: pathlib.Path):
     """
@@ -354,7 +381,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
 
     config = read_config(verbose=verbose)
     cmd_darktable, cmd_gmic = get_command_paths(_args)
-
+    print(cmd_darktable)
     if not os.path.exists(cmd_gmic) or _args.get("--no_deblur"):
         print("\nWarning: gmic (" + cmd_gmic + ") does not exist or --no_deblur is set, disabled RL-deblur")
         rldeblur = False
@@ -437,24 +464,18 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
                     ],
                    cwd=outpath.parent, check=True)
 
-    # call RL-deblur with gmic
-    if rldeblur:
-        if ' ' in outpath.name:
-            # gmic can't handle spaces, so file away the original name for later restoration
-            restore_original_outpath = outpath.name
-            outpath = outpath.rename(outpath.with_name(outpath.name.replace(' ', '_')))
-        else:
-            restore_original_outpath = None
-        subprocess.run([cmd_gmic, stage_two_output_filepath,
-                        '-deblur_richardsonlucy', str(sigma) + ',' + str(iteration) + ',' + '1',
-                        '-/', '256', 'cut', '0,255', 'round',
-                        '-o', outpath.name + ',' + str(quality)
-                         ],
-                       cwd=outpath.parent, check=True)
-        if verbose:
-            print('Applied RL-deblur to:', outpath)
-        if restore_original_outpath is not None:
-            outpath.replace(outpath.with_name(restore_original_outpath))  # restore original name with spaces
+    # call RL-deblur via deblur stage
+    from nind_denoise.pipeline import Context, NoOpDeblur, RLDeblur
+    deblur_stage = RLDeblur() if rldeblur else NoOpDeblur()
+    ctx = Context(outpath=outpath,
+                  stage_two_output_filepath=stage_two_output_filepath,
+                  sigma=sigma,
+                  iteration=iteration,
+                  quality=quality,
+                  cmd_gmic=cmd_gmic,
+                  output_dir=output_dir,
+                  verbose=verbose)
+    deblur_stage.execute(ctx)
 
     clone_exif(stage_one_output_filepath, outpath, verbose=verbose)
 
@@ -463,6 +484,9 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
                                   stage_two_output_filepath,
                                   input_xmp.with_suffix('.s1.xmp'),
                                   input_xmp.with_suffix('.s2.xmp')]:
+            # Do not delete the final output file
+            if intermediate_file == outpath:
+                continue
             intermediate_file.unlink(missing_ok=True)
 
 if __name__ == '__main__':
