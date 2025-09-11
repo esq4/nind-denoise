@@ -50,3 +50,15 @@ dependencies = [
     "typing-extensions>=4.14.1",
     "wcwidth~=0.2.13",
 ]
+
+[dependency-groups]
+dev = [
+    "pylint>=3.3.8",
+    "pytest>=8.4.2",
+]
+
+[dependency-groups]
+dev = [
+    "pylint>=3.3.8",
+    "pytest>=8.4.2",
+]
