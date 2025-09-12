@@ -2,7 +2,6 @@ import pathlib
 import sys
 
 import pytest
-from docopt import docopt
 
 import importlib.machinery
 import importlib.util
@@ -17,11 +16,18 @@ def load_denoise_module():
     return mod
 
 
-def test_docopt_parsing_help_displays_usage(capsys):
+def test_typer_help_displays_usage():
     mod = load_denoise_module()
-    with pytest.raises(SystemExit):
-        # docopt raises on --help by design
-        docopt(mod.__doc__, argv=['--help'], version='__version__')
+    import typer
+    from typer.testing import CliRunner
+
+    app = typer.Typer()
+    app.command()(mod.cli)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["--help"])    
+    assert result.exit_code == 0
+    assert "Usage" in result.stdout or "Usage:" in result.stdout
 
 
 def test_get_output_extension_adds_dot_when_missing():
@@ -48,12 +54,13 @@ def test_get_output_path_defaults_to_input_parent(tmp_path):
     assert res == tmp_path
 
 
-def test_get_command_paths_defaults_are_strings():
+def test_get_command_paths_defaults_are_paths():
     mod = load_denoise_module()
     # empty args for defaults
     dt, gmic = mod.get_command_paths({'--dt': None, '--gmic': None})
-    assert isinstance(dt, str)
-    assert isinstance(gmic, str)
+    import pathlib as _pl
+    assert isinstance(dt, _pl.Path)
+    assert isinstance(gmic, _pl.Path)
 
 
 def test_check_good_input_validations(tmp_path):

@@ -242,7 +242,7 @@ def test_raw_pipeline_matches_sample_ssim(tmp_path, ext):
         assert s >= 0.99, f'SSIM too low for TIFF: {s:.6f}'
 
 
-def test_raw_pipeline_psnr_improves(tmp_path):
+def test_raw_pipeline_psnr_improves(tmp_path, monkeypatch):
     mod = _load_denoise_module()
 
     raw_dir = pathlib.Path(__file__).parent / 'test_raw'
@@ -255,8 +255,8 @@ def test_raw_pipeline_psnr_improves(tmp_path):
     else:
         pytest.skip('No RAW+JPG sample pair found')
 
-    args = {
-        '--output-path': str(tmp_path),
+    base_args = {
+        '--output-path': None,
         '--extension': 'jpg',
         '--dt': None,
         '--gmic': None,
@@ -266,19 +266,52 @@ def test_raw_pipeline_psnr_improves(tmp_path):
         '--verbose': False,
         '--debug': True,
     }
-    mod.denoise_file(args, raw)
 
-    out = (tmp_path / raw.name).with_suffix('.jpg')
-    assert out.exists()
+    # 1) Run full pipeline (with denoising)
+    out_with = tmp_path / f"{raw.stem}_with.jpg"
+    args_with = dict(base_args)
+    args_with['--output-path'] = str(out_with)
+    mod.denoise_file(args_with, raw)
+    assert out_with.exists(), f"Full pipeline output missing: {out_with}"
 
-    # stage-1 path and images
-    s1_path, _ = mod.get_stage_filepaths(out, 1)
-    assert s1_path.exists()
+    # 2) Run pipeline again but patch the denoising step to be a no-op (copy s1 -> s1_denoised)
+    out_no = tmp_path / f"{raw.stem}_no_denoise.jpg"
+    args_no = dict(base_args)
+    args_no['--output-path'] = str(out_no)
 
+    # Compute expected stage-1 and stage-1-denoised filepaths for this run
+    s1_no, s1d_no = mod.get_stage_filepaths(out_no, 1)
+
+    # Keep original run to delegate for everything else
+    orig_run = mod.subprocess.run
+
+    def fake_run(cmd, *a, **k):
+        # Detect the denoiser invocation by the presence of the denoise_image.py script in argv
+        cmd_strs = [str(c) for c in (cmd if isinstance(cmd, (list, tuple)) else [cmd])]
+        if any(part.endswith('denoise_image.py') or 'nind_denoise' in part and 'denoise_image.py' in part for part in cmd_strs):
+            # Simulate denoiser by copying the stage-1 output to the expected denoised path
+            s1_no.parent.mkdir(parents=True, exist_ok=True)
+            if not s1_no.exists():
+                # If stage-1 export hasn't been simulated yet, create a placeholder identical to sample JPG
+                # This keeps the test resilient in environments without darktable.
+                from shutil import copyfile
+                copyfile(sample_jpg, s1_no)
+            from shutil import copyfile
+            copyfile(s1_no, s1d_no)
+            return types.SimpleNamespace(returncode=0)
+        # Delegate to real run for other commands
+        return orig_run(cmd, *a, **k)
+
+    monkeypatch.setattr(mod.subprocess, 'run', fake_run)
+
+    mod.denoise_file(args_no, raw)
+    assert out_no.exists(), f"No-denoise pipeline output missing: {out_no}"
+
+    # Compare PSNRs against the ground-truth sample JPG
     ref = _read_image(sample_jpg)
-    s1 = _read_image(s1_path)
-    final = _read_image(out)
+    img_with = _read_image(out_with)
+    img_no = _read_image(out_no)
 
-    psnr_s1 = _psnr(ref, s1)
-    psnr_final = _psnr(ref, final)
-    assert psnr_final > psnr_s1, f'PSNR did not improve: s1={psnr_s1:.3f}, final={psnr_final:.3f}'
+    psnr_with = _psnr(ref, img_with)
+    psnr_no = _psnr(ref, img_no)
+    assert psnr_with > psnr_no, f'PSNR did not improve with denoising: with={psnr_with:.3f}, no={psnr_no:.3f}'
