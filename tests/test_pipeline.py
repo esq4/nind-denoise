@@ -2,10 +2,10 @@ import importlib.machinery
 import importlib.util
 import pathlib
 import sys
-import shutil
+import types
+
 import numpy as np
 from PIL import Image
-import pytest
 
 # Load pipeline from src
 _path = str(
@@ -23,7 +23,15 @@ NoOpDeblur = _pipeline.NoOpDeblur
 RLDeblur = _pipeline.RLDeblur
 
 
-def test_noop_deblur_runs(tmp_path):
+def test_noop_deblur_does_not_invoke_subprocess(tmp_path, monkeypatch, capsys):
+    calls = []
+
+    def fake_run(*a, **k):
+        calls.append((a, k))
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(_pipeline.subprocess, "run", fake_run)
+
     outpath = tmp_path / "x.jpg"
     ctx = Context(
         outpath=outpath,
@@ -35,36 +43,125 @@ def test_noop_deblur_runs(tmp_path):
         output_dir=tmp_path,
         verbose=True,
     )
-    # Should not raise and should not create any files
     NoOpDeblur().execute(ctx)
-    assert not outpath.exists()
+    assert calls == []
 
 
-@pytest.mark.integration
-def test_rl_deblur_executes_when_gmic_available(tmp_path):
-    # Skip if gmic is not available on PATH
-    gmic_path = shutil.which("gmic") or shutil.which("gmic.exe")
-    if not gmic_path:
-        pytest.skip("gmic not available on PATH")
+def test_rl_deblur_invokes_gmic_and_handles_spaces(tmp_path, monkeypatch):
+    calls = []
 
-    # Create a tiny valid TIFF as stage-2 input
-    s2 = tmp_path / "x_s2.tif"
-    Image.new("RGB", (32, 32), color=(128, 128, 128)).save(s2)
+    def fake_run(cmd, cwd=None, check=None):
+        calls.append((cmd, cwd, check))
+        # write output file to simulate gmic behavior
+        outname = cmd[-1].split(",")[0]
+        (cwd / outname).write_text("data")
+        return types.SimpleNamespace(returncode=0)
 
-    outpath = tmp_path / "out.jpg"
+    monkeypatch.setattr(_pipeline.subprocess, "run", fake_run)
+
+    outpath = tmp_path / "my photo.jpg"  # contains space
+    outpath.touch()
     ctx = Context(
         outpath=outpath,
-        stage_two_output_filepath=s2,
-        sigma=1,
+        stage_two_output_filepath=tmp_path / "x_s2.tif",
+        sigma=2,
         iteration="5",
-        quality="90",
-        cmd_gmic=gmic_path,
+        quality="85",
+        cmd_gmic="gmic",
         output_dir=tmp_path,
         verbose=False,
     )
-
     RLDeblur().execute(ctx)
-    assert outpath.exists(), f"RL-deblur did not produce output: {outpath}"
+    # Ensure a gmic call was made
+    assert calls and "gmic" in calls[0][0][0]
+    # Original space-containing filename should be restored
+    assert (tmp_path / "my photo.jpg").exists()
+
+
+import importlib.machinery
+import importlib.util
+import sys
+import pytest
+
+
+# Load pipeline from src
+_path = str(
+    pathlib.Path(__file__).resolve().parents[1] / "src" / "nind_denoise" / "pipeline.py"
+)
+_loader = importlib.machinery.SourceFileLoader("pipeline_local", _path)
+_spec = importlib.util.spec_from_loader(_loader.name, _loader)
+_pipeline = importlib.util.module_from_spec(_spec)
+# Register module to satisfy dataclasses type resolution
+sys.modules[_loader.name] = _pipeline
+_loader.exec_module(_pipeline)
+
+Context = _pipeline.Context
+NoOpDeblur = _pipeline.NoOpDeblur
+RLDeblur = _pipeline.RLDeblur
+
+
+def test_noop_deblur_does_not_invoke_subprocess(tmp_path, monkeypatch, capsys):
+    calls = []
+
+    def fake_run(*a, **k):
+        calls.append((a, k))
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(_pipeline.subprocess, "run", fake_run)
+
+    outpath = tmp_path / "x.jpg"
+    ctx = Context(
+        outpath=outpath,
+        stage_two_output_filepath=tmp_path / "x_s2.tif",
+        sigma=1,
+        iteration="10",
+        quality="90",
+        cmd_gmic="gmic",
+        output_dir=tmp_path,
+        verbose=True,
+    )
+    NoOpDeblur().execute(ctx)
+    assert calls == []
+
+
+def test_rl_deblur_invokes_gmic_and_handles_spaces(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_run(cmd, cwd=None, check=None):
+        calls.append((cmd, cwd, check))
+        # write output file to simulate gmic behavior
+        outname = cmd[-1].split(",")[0]
+        (cwd / outname).write_text("data")
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(_pipeline.subprocess, "run", fake_run)
+
+    outpath = tmp_path / "my photo.jpg"  # contains space
+    outpath.touch()
+    ctx = Context(
+        outpath=outpath,
+        stage_two_output_filepath=tmp_path / "x_s2.tif",
+        sigma=2,
+        iteration="5",
+        quality="85",
+        cmd_gmic="gmic",
+        output_dir=tmp_path,
+        verbose=False,
+    )
+    RLDeblur().execute(ctx)
+    # Ensure a gmic call was made
+    assert calls and "gmic" in calls[0][0][0]
+    # Original space-containing filename should be restored
+    assert (tmp_path / "my photo.jpg").exists()
+
+
+def _load_denoise_module():
+    path = str(pathlib.Path(__file__).resolve().parents[1] / "src" / "denoise.py")
+    loader = importlib.machinery.SourceFileLoader("denoise_local_ssim", path)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
 
 
 def _read_image(path: pathlib.Path) -> np.ndarray:
@@ -74,6 +171,7 @@ def _read_image(path: pathlib.Path) -> np.ndarray:
 
 
 def _ssim(a: np.ndarray, b: np.ndarray) -> float:
+    # grayscale SSIM (OpenCV)
     import cv2
 
     x = a.astype(np.float32)
@@ -98,13 +196,17 @@ def _ssim(a: np.ndarray, b: np.ndarray) -> float:
     return float(ssim_map.mean())
 
 
+def _psnr(ref: np.ndarray, test: np.ndarray) -> float:
+    # Peak Signal-to-Noise Ratio
+    mse = np.mean((ref.astype(np.float32) - test.astype(np.float32)) ** 2)
+    if mse == 0:
+        return float("inf")
+    PIXMAX = 255.0
+    return 20.0 * np.log10(PIXMAX) - 10.0 * np.log10(mse)
+
+
 @pytest.mark.parametrize("ext", ["jpg", "tiff"])
-@pytest.mark.integration
 def test_raw_pipeline_matches_sample_ssim(tmp_path, ext):
-    # Ensure darktable-cli is available, otherwise skip
-    dt_path = shutil.which("darktable-cli") or shutil.which("darktable-cli.exe")
-    if not dt_path:
-        pytest.skip("darktable-cli not available on PATH")
 
     # find a RAW that has a paired sample JPG
     raw_dir = pathlib.Path(__file__).parent / "test_raw"
@@ -120,6 +222,7 @@ def test_raw_pipeline_matches_sample_ssim(tmp_path, ext):
     if not candidates:
         pytest.skip("No RAW+JPG sample pair found in tests/test_raw")
 
+    # just use the first available pair
     raw, sample_jpg = candidates[0]
 
     # run the pipeline writing to tmp_path
@@ -127,8 +230,8 @@ def test_raw_pipeline_matches_sample_ssim(tmp_path, ext):
     args = {
         "--output-path": str(outdir),
         "--extension": ext,
-        "--dt": dt_path,
-        "--gmic": None,  # allow pipeline to disable RL-deblur if missing
+        "--dt": None,
+        "--gmic": None,
         "--sigma": "1",
         "--quality": "90",
         "--iterations": "10",
@@ -138,15 +241,18 @@ def test_raw_pipeline_matches_sample_ssim(tmp_path, ext):
 
     _pipeline.run_pipeline(args, raw)
 
+    # expected output path
     out = (outdir / raw.name).with_suffix("." + ext)
     assert out.exists(), f"Output not created: {out}"
 
+    # SSIM between produced output and provided sample JPG should be near 1
     out_img = _read_image(out)
     sample_img = _read_image(sample_jpg)
     s = _ssim(sample_img, out_img)
     if ext.lower() == "jpg":
         assert s >= 0.999, f"SSIM too low for JPG: {s:.6f}"
     else:
+        # converting JPG->TIFF is near-lossless but not exact; be lenient
         assert s >= 0.99, f"SSIM too low for TIFF: {s:.6f}"
 
 
