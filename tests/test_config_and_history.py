@@ -8,11 +8,14 @@ import importlib.machinery
 import importlib.util
 import pathlib
 
-# load functions from src/denoise.py explicitly
-_path = str(pathlib.Path(__file__).resolve().parents[1] / 'src' / 'denoise.py')
-_loader = importlib.machinery.SourceFileLoader('denoise_local_ch', _path)
+# load functions from src/nind_denoise/pipeline.py explicitly
+_path = str(pathlib.Path(__file__).resolve().parents[1] / 'src' / 'nind_denoise' / 'pipeline.py')
+_loader = importlib.machinery.SourceFileLoader('pipeline_local_ch', _path)
 _spec = importlib.util.spec_from_loader(_loader.name, _loader)
 _mod = importlib.util.module_from_spec(_spec)
+# register before exec to satisfy dataclasses
+import sys as _sys
+_sys.modules[_loader.name] = _mod
 _loader.exec_module(_mod)
 read_config = _mod.read_config
 parse_darktable_history_stack = _mod.parse_darktable_history_stack
@@ -48,8 +51,27 @@ def test_read_config_nightmode_moves_ops(tmp_path):
     assert 'toneequal' not in nm['operations']['second_stage']
 
 
-def test_parse_darktable_history_stack_generates_s1_s2(tmp_path, sample_xmp):
-    # config mirrors fixture operations
+def test_parse_darktable_history_stack_generates_s1_s2(tmp_path):
+    # create a minimal input XMP sidecar
+    sample_xmp = tmp_path / 'in.xmp'
+    sample_xmp.write_text('''\
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:darktable="http://darktable.sourceforge.net/">
+  <rdf:Description darktable:iop_order_version="3" darktable:iop_order_list="demosaic,0,unlistedop,0,colorin,0,exposure,0,toneequal,0,flip,0">
+    <darktable:history>
+      <rdf:Seq>
+        <rdf:li darktable:num="0" darktable:operation="demosaic" darktable:enabled="1" />
+        <rdf:li darktable:num="1" darktable:operation="unlistedop" darktable:enabled="1" />
+        <rdf:li darktable:num="2" darktable:operation="colorin" darktable:enabled="0" />
+        <rdf:li darktable:num="3" darktable:operation="exposure" darktable:enabled="1" />
+        <rdf:li darktable:num="4" darktable:operation="toneequal" darktable:enabled="1" />
+        <rdf:li darktable:num="5" darktable:operation="flip" darktable:enabled="1" />
+      </rdf:Seq>
+    </darktable:history>
+  </rdf:Description>
+</rdf:RDF>
+''', encoding='utf-8')
+
+    # config mirrors operations of interest
     config = {
         'operations': {
             'first_stage': ['demosaic', 'colorin', 'exposure', 'toneequal', 'flip'],

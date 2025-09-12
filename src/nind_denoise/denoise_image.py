@@ -177,27 +177,7 @@ class OneImageDS(Dataset):
         return self.size
 
 
-if __name__ == '__main__':
-    parser = configargparse.ArgumentParser(description=__doc__, default_config_files=[
-        nn_common.COMMON_CONFIG_FPATH],
-        config_file_parser_class=configargparse.YAMLConfigFileParser)
-    parser.add_argument('--cs', type=int, help='Tile size (model was probably trained with 128, different values will work with unknown results)')
-    parser.add_argument('--ucs', type=int, help='Useful tile size (should be <=.75*cs for U-Net, a smaller value may result in less grid artifacts but costs computation time')
-    parser.add_argument('-ol', '--overlap', default=6, type=int, help='Merge crops with this much overlap (Reduces grid artifacts, may reduce sharpness between crops, costs computation time)')
-    parser.add_argument('-i', '--input', default='in.jpg', type=str, help='Input image file')
-    parser.add_argument('-o', '--output', type=str, help='Output file with extension (default: model_dpath/test/denoised_images/fn.tif)')
-    parser.add_argument('-b', '--batch_size', type=int, default=1)  # TODO >1 is broken
-    parser.add_argument('--debug', action='store_true', help='Debug (store all intermediate crops in ./dbg, display useful messages)')
-    parser.add_argument('--exif_method', default='piexif', type=str, help='How is exif data copied over? (piexif, exiftool, noexif)')
-    parser.add_argument('--g_network', '--network', '--arch', type=str, help='Generator network (typically UNet or UtNet)')
-    parser.add_argument('--model_path', help='Generator pretrained model path (.pth for model, .pt for dictionary), required')
-    parser.add_argument('--model_parameters', type=str, help='Model parameters with format "parameter1=value1,parameter2=value2"')
-    parser.add_argument('--max_subpixels', type=int, help='Max. number of sub-pixels, abort if exceeded.')
-    parser.add_argument('--whole_image', action='store_true', help='Ignore cs and ucs, denoise whole image')
-    parser.add_argument('--pad', type=int, help='Padding amt per side, only used for whole image (otherwise (cs-ucs)/2')
-    parser.add_argument('--models_dpath', help='Directory where all models are saved (used when a model name is provided as model_path)')
-
-    args, _ = parser.parse_known_args()
+def run_from_args(args):
     assert args.model_path is not None
     autodetect_network_cs_ucs(args)
 
@@ -241,7 +221,7 @@ if __name__ == '__main__':
         print(str(n_count)+'/'+str(int(len(ds)/args.batch_size)))
         ybatch, usefuldims, usefulstarts = ydat
         if args.max_subpixels is not None and math.prod(ybatch.shape) > args.max_subpixels:
-            sys.exit(f'denoise_image.py: {ybatch.shape=}, {math.prod(ybatch.shape)=} > {args.max_subpixels=} for {args.input=}; aborting')
+            raise ValueError(f'denoise_image: {ybatch.shape=}, {math.prod(ybatch.shape)=} > {args.max_subpixels=} for {args.input=}; aborting')
         ybatch = ybatch.to(device)
         xbatch = model(ybatch)
         if torch.accelerator.is_available():
@@ -279,5 +259,28 @@ if __name__ == '__main__':
         exiv_dst.writeMetadata()
 
     print(f'Wrote denoised image to {args.output}')
-    print('Elapsed time: '+str(time.time()-start_time)+' seconds')
+
+
+if __name__ == '__main__':
+    parser = configargparse.ArgumentParser(description=__doc__, default_config_files=[
+        nn_common.COMMON_CONFIG_FPATH],
+        config_file_parser_class=configargparse.YAMLConfigFileParser)
+    parser.add_argument('--cs', type=int, help='Tile size (model was probably trained with 128, different values will work with unknown results)')
+    parser.add_argument('--ucs', type=int, help='Useful tile size (should be <=.75*cs for U-Net, a smaller value may result in less grid artifacts but costs computation time')
+    parser.add_argument('-ol', '--overlap', default=6, type=int, help='Merge crops with this much overlap (Reduces grid artifacts, may reduce sharpness between crops, costs computation time)')
+    parser.add_argument('-i', '--input', default='in.jpg', type=str, help='Input image file')
+    parser.add_argument('-o', '--output', type=str, help='Output file with extension (default: model_dpath/test/denoised_images/fn.tif)')
+    parser.add_argument('-b', '--batch_size', type=int, default=1)  # TODO >1 is broken
+    parser.add_argument('--debug', action='store_true', help='Debug (store all intermediate crops in ./dbg, display useful messages)')
+    parser.add_argument('--exif_method', default='piexif', type=str, help='How is exif data copied over? (piexif, exiftool, noexif)')
+    parser.add_argument('--g_network', '--network', '--arch', type=str, help='Generator network (typically UNet or UtNet)')
+    parser.add_argument('--model_path', help='Generator pretrained model path (.pth for model, .pt for dictionary), required')
+    parser.add_argument('--model_parameters', type=str, help='Model parameters with format "parameter1=value1,parameter2=value2"')
+    parser.add_argument('--max_subpixels', type=int, help='Max. number of sub-pixels, abort if exceeded.')
+    parser.add_argument('--whole_image', action='store_true', help='Ignore cs and ucs, denoise whole image')
+    parser.add_argument('--pad', type=int, help='Padding amt per side, only used for whole image (otherwise (cs-ucs)/2')
+    parser.add_argument('--models_dpath', help='Directory where all models are saved (used when a model name is provided as model_path)')
+
+    args, _ = parser.parse_known_args()
+    run_from_args(args)
     #TODO: make this return something ideally useful

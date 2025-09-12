@@ -86,16 +86,26 @@ if __name__ == '__main__':
             if outimg_path.endswith('jpg'):
                 outimg_path = outimg_path+'.tif'
             if not (os.path.isfile(outimg_path) and args.skip_existing):
-                cmd = ['python', 'denoise_image.py', '-i', inimg_path, '-o', outimg_path,
-                       '--model_path', model_path, '--network',args.g_network, '--model_parameters',
-                       args.model_parameters, '--ucs', str(args.ucs), '--cs', str(args.cs)]
-                if args.whole_image:
-                    cmd.extend(['--whole_image', '--pad', '128'])
-                if args.max_subpixels is not None:
-                    cmd.extend(['--max_subpixels', str(args.max_subpixels)])
-                    print(cmd)
-                print(' '.join(cmd))
-                subprocess.call(cmd)
+                # Build arguments namespace and call denoise_image natively (no subprocess)
+                from types import SimpleNamespace as _NS
+                di_args = _NS(
+                    cs=int(args.cs) if args.cs is not None else None,
+                    ucs=int(args.ucs) if args.ucs is not None else None,
+                    overlap=6,
+                    input=inimg_path,
+                    output=outimg_path,
+                    batch_size=1,
+                    debug=False,
+                    exif_method='piexif',
+                    g_network=args.g_network,
+                    model_path=model_path,
+                    model_parameters=args.model_parameters,
+                    max_subpixels=int(args.max_subpixels) if args.max_subpixels is not None else None,
+                    whole_image=bool(args.whole_image),
+                    pad=128 if args.whole_image else args.pad,
+                    models_dpath=args.models_dpath,
+                )
+                denoise_image.run_from_args(di_args)
             cur_losses = pt_helpers.get_losses(baseline_fpath, outimg_path)
             print(f'in: {inimg_path}, out: {outimg_path}, clean: {baseline_fpath}')
             print(cur_losses)
