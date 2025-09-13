@@ -1,0 +1,44 @@
+valid_extensions:
+  - 3FR
+  - ARW
+  - SR2
+  - SRF
+  - CR2
+  - CR3
+  - CRW
+  - DNG
+  - ERF
+  - FFF
+  - MRW
+  - NEF
+  - NRW
+  - ORF
+  - PEF
+  - RAF
+  - RW2
+
+tools:
+  windows:
+    darktable: "C:\\Program Files\\darktable\\bin\\darktable-cli.exe"
+    gmic: "C:\\Program Files\\gmic\\gmic.exe"
+  posix:
+    darktable: "/usr/bin/darktable-cli"
+    gmic: "/usr/bin/gmic"
+
+operations:
+  first_stage:
+    - demosaic
+    - whitebalance
+    - exposure
+    - denoiseprofile
+    - colorin
+    - flip
+  second_stage:
+    - colorout
+    - sharpen
+    - toneequal
+  overrides: {}
+
+models:
+  nind_generator_650.pt:
+    path: "models/nind/generator_650.pt"}

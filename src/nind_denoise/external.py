@@ -8,6 +8,7 @@ import logging
 from typing import Optional, Iterable
 
 from .exceptions import ExternalToolNotFound
+from .config import get_tool_executable_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +34,35 @@ def run_cmd(args: Iterable[Path | str], cwd: Optional[Path] = None) -> None:
     subprocess.run(cmd, cwd=None if cwd is None else str(cwd), check=True)
 
 
-def resolve_tools(dt_opt: Optional[Path] | None, gmic_opt: Optional[Path] | None) -> Tools:
-    """Resolve external tool paths for darktable-cli and gmic.
+def resolve_tools(
+    dt_opt: Optional[Path] | None, gmic_opt: Optional[Path] | None
+) -> Tools:
+    """Resolve external tool paths for darktable-cli and gmic using config tooling.
 
     - If explicit Path provided, use it.
-    - Else, search common executable names on PATH.
+    - Else, iterate over candidate executable names from config.get_tool_executable_candidates().
     - Raise ExternalToolNotFound if darktable-cli cannot be resolved.
     """
-    darktable = dt_opt or _which("darktable-cli") or _which("darktable-cli.exe")
+    candidates = get_tool_executable_candidates()
+
+    darktable: Optional[Path] = dt_opt
+    if not darktable:
+        for name in candidates.get("darktable_cli", []):
+            p = _which(name)
+            if p:
+                darktable = p
+                break
     if not darktable or not Path(darktable).exists():
-        raise ExternalToolNotFound("darktable-cli not found on PATH or provided path invalid")
-    gmic = gmic_opt or _which("gmic") or _which("gmic.exe")
+        raise ExternalToolNotFound(
+            "darktable-cli not found on PATH or provided path invalid"
+        )
+
+    gmic: Optional[Path] = gmic_opt
+    if not gmic:
+        for name in candidates.get("gmic", []):
+            p = _which(name)
+            if p:
+                gmic = p
+                break
+
     return Tools(darktable=Path(darktable), gmic=Path(gmic) if gmic else None)

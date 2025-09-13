@@ -1,55 +1,28 @@
-import os
 import pathlib
-import shutil
 
 import pytest
-import importlib.machinery
-import importlib.util
 import typer
 from typer.testing import CliRunner
 
-
-def _load_cli_module():
-    path = str(pathlib.Path(__file__).resolve().parents[1] / "src" / "denoise.py")
-    loader = importlib.machinery.SourceFileLoader("denoise_cli_local", path)
-    spec = importlib.util.spec_from_loader(loader.name, loader)
-    mod = importlib.util.module_from_spec(spec)
-    loader.exec_module(mod)
-    return mod
+from nind_denoise.config import valid_extensions
 
 
 @pytest.mark.parametrize("ext", ["jpg", "tiff"])  # real tools; slow/integration
 @pytest.mark.integration
 def test_raw_pipeline_cli_runs_with_real_tools(tmp_path, ext):
-    # Locate a RAW that has a paired sample JPG for reference paths
+    # Locate a RAW sample using supported extensions from config
     raw_dir = pathlib.Path(__file__).parent / "test_raw"
-    candidates = []
-    for p in raw_dir.iterdir():
-        if not p.is_file():
-            continue
-        if p.with_suffix(".jpg").exists():
-            candidates.append(p)
-    if not candidates:
-        pytest.skip("No RAW+JPG sample pair found in tests/test_raw")
+    candidates = [
+        p for p in raw_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in valid_extensions
+    ]
+    assert candidates, "No RAW sample with a supported extension found in tests/test_raw"
 
     raw = candidates[0]
 
-    # Resolve external tools: prefer environment overrides, else PATH
-    dt_env = os.environ.get("DT_CLI") or os.environ.get("DARKTABLE_CLI")
-    gmic_env = os.environ.get("GMIC")
+    # Build CLI app directly from module import (no dynamic loader)
+    import denoise as mod
 
-    def _which(name: str) -> str | None:
-        p = shutil.which(name)
-        return p if p else None
-
-    dt_path = dt_env or _which("darktable-cli") or _which("darktable-cli.exe")
-    if not dt_path:
-        pytest.skip("darktable-cli not found; set DT_CLI env var or add to PATH to run integration test")
-
-    gmic_path = gmic_env or _which("gmic") or _which("gmic.exe")
-
-    # Build CLI app
-    mod = _load_cli_module()
     app = typer.Typer()
     app.command()(mod.cli)
 
@@ -63,13 +36,7 @@ def test_raw_pipeline_cli_runs_with_real_tools(tmp_path, ext):
         "-e",
         ext,
         "--debug",
-        "--dt",
-        dt_path,
     ]
-    if gmic_path:
-        args.extend(["--gmic", gmic_path])
-    else:
-        args.append("--no_deblur")
 
     result = runner.invoke(app, args)
     assert result.exit_code == 0, result.stdout

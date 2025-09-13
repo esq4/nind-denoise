@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from typing import Sequence
 import logging
 
-from ..external import Tools  # type: ignore[reportMissingImports]
+from ..config import Tools  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger(__name__)
 

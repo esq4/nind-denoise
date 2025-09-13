@@ -6,9 +6,6 @@ import typer
 
 logger = logging.getLogger(__name__)
 
-# valid_extensions is sourced from the pipeline to keep a single definition
-from nind_denoise.pipeline import valid_extensions, run_pipeline  # type: ignore
-
 
 def cli(
     raw_image: pathlib.Path = typer.Argument(
@@ -72,6 +69,10 @@ def cli(
         "--verbose": verbose,
     }
 
+    # Import pipeline lazily to avoid importing heavy optional dependencies
+    # when only requesting CLI help or metadata.
+    from nind_denoise.pipeline import run_pipeline  # type: ignore
+    from nind_denoise.config import valid_extensions
 
     if raw_image.is_dir():
         for file in raw_image.iterdir():
