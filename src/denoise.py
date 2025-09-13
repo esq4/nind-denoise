@@ -450,7 +450,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
                         '-/', '256', 'cut', '0,255', 'round',
                         '-o', outpath.name + ',' + str(quality)
                          ],
-                       cwd=output_dir, check=True)
+                       cwd=outpath.parent, check=True)
         if verbose:
             print('Applied RL-deblur to:', outpath)
         if restore_original_outpath is not None:

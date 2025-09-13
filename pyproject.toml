@@ -50,3 +50,15 @@ dependencies = [
     "typing-extensions>=4.14.1",
     "wcwidth~=0.2.13",
 ]
+[dependency-groups]
+dev = [
+    "ipython>=9.5.0"
+]
+test = [
+    "nind-denoise",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+]
+
+[tool.uv.sources]
+nind-denoise = { workspace = true }
