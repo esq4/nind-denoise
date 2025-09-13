@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Context:
     inpath: Optional[Path] = None
+    outpath: Optional[Path] = None
+    output_dir: Optional[Path] = None
     output_filepath: Optional[Path] = None
     sigma: Optional[int] = None
     iteration: Optional[str] = None
@@ -30,10 +32,6 @@ class StageError(Exception):
 
 class Operation(ABC):
     """Abstract base for all operations (export, denoise, deblur)."""
-
-    @property
-    @abstractmethod
-    def ctx(self) -> Context: ...
 
     @abstractmethod
     def describe(self) -> str:  # pragma: no cover - description only

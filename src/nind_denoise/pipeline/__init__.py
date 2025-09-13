@@ -61,13 +61,15 @@ def get_stage_filepaths(outpath: pathlib.Path, stage: int):
 
 
 def validate_input_file(input_path: pathlib.Path) -> None:
-    """Validate the input file and its XMP."""
+    """Validate the input file and its XMP (both must exist)."""
     input_xmp = input_path.with_suffix(input_path.suffix + ".xmp")
     good_file = input_path.exists() and input_path.is_file()
     good_xmp = input_xmp.exists() and input_xmp.is_file()
 
-    if not (good_file or good_xmp):
-        logger.error("The input raw-image or its XMP were not found, or are not valid.")
+    if not (good_file and good_xmp):
+        logger.error(
+            "The input raw-image and its XMP were not found, or are not valid."
+        )
         raise FileNotFoundError(str(input_path))
 
 
@@ -84,8 +86,8 @@ def download_model_if_needed(model_path: pathlib.Path) -> None:
         )
 
 
-def resolve_unique_output_path(outpath: pathlib.Path) -> None:
-    """Ensure output path is unique."""
+def resolve_unique_output_path(outpath: pathlib.Path) -> pathlib.Path:
+    """Ensure output path is unique by appending an index suffix if needed."""
     i = 1
     while outpath.exists():
         outpath = outpath.with_stem(outpath.stem + "_" + str(i))
@@ -95,6 +97,7 @@ def resolve_unique_output_path(outpath: pathlib.Path) -> None:
                 "Too many files with the same name already exist in %s", outpath.parent
             )
             raise FileExistsError(str(outpath.parent))
+    return outpath
 
 
 def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
@@ -136,13 +139,19 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
             tools.gmic if tools.gmic else _args.get("--gmic"),
         )
 
-    resolve_unique_output_path(outpath)
+    outpath = resolve_unique_output_path(outpath)
 
     # Stage 1 export (32-bit TIFF)
+    input_xmp = _input_path.with_suffix(_input_path.suffix + ".xmp")
     s1_xmp = stage_one_output_filepath.with_suffix(".s1.xmp")
-    ExportStage1(tools, _input_path, s1_xmp, stage_one_output_filepath).execute(
-        Context(verbose=verbose)
-    )
+    ExportStage(
+        tools,
+        _input_path,
+        input_xmp,
+        s1_xmp,
+        stage_one_output_filepath,
+        1,
+    ).execute(Context(verbose=verbose))
 
     model_config = config["models"]["nind_generator_650.pt"]
     model_path = pathlib.Path(model_config["path"])
@@ -162,9 +171,10 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
     ExportStage(
         tools,
         stage_one_denoised_filepath,
-        _input_path.with_suffix(".xmp"),
+        input_xmp,
         xmp2_dst,
         stage_two_output_filepath,
+        2,
     ).execute(Context(verbose=verbose))
 
     # Deblur stage

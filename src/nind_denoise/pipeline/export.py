@@ -25,6 +25,11 @@ class ExportStage(ExportOperation):
     def describe(self) -> str:
         return f"Export Stage {self.stage_number} ({32 if self.stage_number == 1 else 16}-bit TIFF)"
 
+    def execute(self, ctx: Context) -> None:
+        # Store context for logging helpers and delegate to run
+        self._ctx = ctx  # type: ignore[attr-defined]
+        self.run(ctx)
+
     def run(self, ctx: Context) -> None:
         # Build the stage-X XMP adjacent to the input TIFF before export
         if not self.src_xmp.exists():

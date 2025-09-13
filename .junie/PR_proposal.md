@@ -5,9 +5,9 @@
   src\nind_denoise to generate an up-to-date, file-by-file issue list.
 - Classify issues by severity: correctness (undefined names, inconsistent returns), safety (broad except, dangerous
   defaults), and style (long lines, trailing whitespace).
-- Select a minimal, low-risk subset for the first pass (correctness and safety first).
 
-3. Implement minimal, safe fixes in src\nind_denoise\common\libs to address correctness and safety without changing
+3. Implement fixes in src\nind_denoise\common, src\nind_denoise\tools, src\nind_denoise\models,
+   src\nind_denoise\networks, and src\nind_denoise to address correctness and safety without changing
    behavior.
 
 - Add missing imports or define missing symbols flagged by pylint (e.g., undefined names).
