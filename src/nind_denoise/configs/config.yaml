@@ -41,4 +41,4 @@ operations:
 
 models:
   nind_generator_650.pt:
-    path: "models/nind/generator_650.pt"}
+    path: "models/nind/generator_650.pt"

@@ -6,21 +6,23 @@ legacy read_config used by tests for operations/history manipulation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional, Iterable, Sequence
 import logging
-import io
 import os
 import platform
 import shutil
 import subprocess  # re-exportable for monkeypatching
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable, Optional
+
 import yaml
 
 try:
     # Python 3.12+: importlib.resources.files
     from importlib.resources import files as PKG_FILES  # type: ignore
-except Exception:  # pragma: no cover - fallback for older pythons (not expected here)  # pylint: disable=broad-exception-caught
+except (
+    Exception
+):  # pragma: no cover - fallback for older pythons (not expected here)  # pylint: disable=broad-exception-caught
     PKG_FILES = None  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -223,6 +225,7 @@ def resolve_tools(
                 break
     if not darktable or not Path(darktable).exists():
         from .exceptions import ExternalToolNotFound
+
         raise ExternalToolNotFound(
             "darktable-cli not found on PATH or configured path invalid"
         )
@@ -268,6 +271,7 @@ valid_extensions: list[str] = compute_valid_extensions(_cli_cfg) or [
 # Operations/models loader (packaged config)
 # ---------------------------
 
+
 def read_config(
     config_path: str | None = None,
     _nightmode: bool = False,
@@ -288,7 +292,11 @@ def read_config(
         if verbose:
             logger.info("Updating ops for nightmode ...")
         nightmode_ops = ["exposure", "toneequal"]
-        var.setdefault("operations", {}).setdefault("first_stage", []).extend(nightmode_ops)
+        var.setdefault("operations", {}).setdefault("first_stage", []).extend(
+            nightmode_ops
+        )
         second = var.setdefault("operations", {}).setdefault("second_stage", [])
-        var["operations"]["second_stage"] = [op for op in second if op not in nightmode_ops]
+        var["operations"]["second_stage"] = [
+            op for op in second if op not in nightmode_ops
+        ]
     return var

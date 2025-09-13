@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .base import DenoiseOperation, Context, StageError
+from .base import Context, DenoiseOperation, StageError
 
 
 @dataclass
@@ -23,6 +23,8 @@ class DenoiseStage(DenoiseOperation):
         return "Denoise"
 
     def execute(self, ctx: Context) -> None:
+        # Prepare output file (ensure directory exists and unlink stale file)
+        self._prepare_output_file(self.s1_denoised_tif)
         # Import locally to avoid import-time side effects
         from nind_denoise import denoise_image as _dim
         from types import SimpleNamespace as NS

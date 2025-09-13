@@ -1,12 +1,13 @@
 """EXIF utilities for nind-denoise.
 
 Thin adapter over the exiv2 Python bindings to copy EXIF metadata between
-images. Kept minimal and import-safe for tests.
+images.
 """
+
 from __future__ import annotations
 
-from pathlib import Path
 import logging
+from pathlib import Path
 
 import exiv2  # type: ignore
 

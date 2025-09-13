@@ -2,64 +2,69 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .base import ExportOperation, Context, StageError
+from .base import Context, ExportOperation, StageError
 
 
-class ExportStage1(ExportOperation):
-    def __init__(self, tools, input_raw: Path, stage1_xmp: Path, out_tif32: Path):
+class ExportStage(ExportOperation):
+    def __init__(
+        self,
+        tools,
+        input_tif: Path,
+        src_xmp: Path,
+        stage_xmp: Path,
+        out_tif: Path,
+        stage_number: int,
+    ):
         super().__init__(tools)
-        self.input_raw = input_raw
-        self.stage1_xmp = stage1_xmp
-        self.out_tif32 = out_tif32
+        self.input_tif = input_tif
+        self.src_xmp = src_xmp
+        self.stage_xmp = stage_xmp
+        self.out_tif = out_tif
+        self.stage_number = stage_number
 
     def describe(self) -> str:
-        return "Export Stage 1 (32-bit TIFF)"
+        return f"Export Stage {self.stage_number} ({32 if self.stage_number == 1 else 16}-bit TIFF)"
 
-    def execute(self, ctx: Context) -> None:
-        self._run_cmd(
-            [
-                self.tools.darktable,
-                self.input_raw,
-                self.stage1_xmp.name,
-                self.out_tif32.name,
-                "--apply-custom-presets",
-                "false",
-                "--core",
-                "--conf",
-                "plugins/imageio/format/tiff/bpp=32",
-            ],
-            cwd=self.out_tif32.parent,
+    def run(self, ctx: Context) -> None:
+        # Build the stage-X XMP adjacent to the input TIFF before export
+        if not self.src_xmp.exists():
+            raise StageError(f"Missing input XMP: {self.src_xmp}")
+
+        # Prepare output file path (create dir, remove any pre-existing file)
+        self._prepare_output_file(self.out_tif)
+
+        # Ensure stage-X XMP is written where the export runs (cwd)
+        self.write_xmp_file(
+            self.src_xmp, self.stage_xmp, stage=self.stage_number, verbose=ctx.verbose
         )
-        if not self.out_tif32.exists():
-            raise StageError(f"s1 export missing: {self.out_tif32}")
 
+        cmd_args = [
+            self.tools.darktable,
+            self.input_tif,
+            self.stage_xmp.name,
+            self.out_tif.name,
+            "--apply-custom-presets",
+            "false",
+            "--core",
+            "--conf",
+            f"plugins/imageio/format/tiff/bpp={32 if self.stage_number == 1 else 16}",
+        ]
 
-class ExportStage2(ExportOperation):
-    def __init__(self, tools, s1_denoised_tif: Path, stage2_xmp: Path, out_tif16: Path):
-        super().__init__(tools)
-        self.s1_denoised_tif = s1_denoised_tif
-        self.stage2_xmp = stage2_xmp
-        self.out_tif16 = out_tif16
+        # Add stage-specific arguments
+        if self.stage_number == 2:
+            cmd_args.extend(["--icc-intent", "PERCEPTUAL", "--icc-type", "SRGB"])
 
-    def describe(self) -> str:
-        return "Export Stage 2 (16-bit TIFF)"
+        self._run_cmd(cmd_args, cwd=self.out_tif.parent)
+        self.verify()
 
-    def execute(self, ctx: Context) -> None:
-        self._run_cmd(
-            [
-                self.tools.darktable,
-                self.s1_denoised_tif,
-                self.stage2_xmp.name,
-                self.out_tif16.name,
-                "--icc-intent",
-                "PERCEPTUAL",
-                "--icc-type",
-                "SRGB",
-                "--apply-custom-presets",
-                "false",
-                "--core",
-                "--conf",
-                "plugins/imageio/format/tiff/bpp=16",
-            ],
-            cwd=self.out_tif16.parent,
-        )
+    def verify(self, ctx: Context | None = None) -> None:
+        if not self.out_tif.exists():
+            # Darktable may shorten '.tiff' to '.tif' on some platforms; normalize to requested
+            if self.out_tif.suffix.lower() == ".tiff":
+                alt_path = self.out_tif.with_suffix(".tif")
+                if alt_path.exists():
+                    alt_path.replace(self.out_tif)
+        if not self.out_tif.exists():
+            raise StageError(
+                f"Stage {self.stage_number} export missing: {self.out_tif}"
+            )

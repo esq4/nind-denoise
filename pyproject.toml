@@ -55,9 +55,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
+test = [
     "pylint>=3.3.8",
     "pytest>=8.4.2",
+    "nind-denoise"
 ]
 
 [tool.setuptools]
@@ -68,3 +69,19 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "nind_denoise" = ["configs/*.yaml"]
+
+[tool.pylint.messages_control]
+# Do not disable pylint messaging
+enable = [
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "import-outside-toplevel",
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.typecheck]
+# OpenCV exposes attributes dynamically; suppress false positives here.
+generated-members = ["cv2.*"]
