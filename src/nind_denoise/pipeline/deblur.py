@@ -1,35 +1,18 @@
-from __future__ import annotations
+"""Deblur operation(s) for the nind-denoise pipeline."""
 
-from dataclasses import dataclass
-from pathlib import Path
+from __future__ import annotations
 
 from .base import DeblurOperation, Context, StageError
 
 
-@dataclass
-class RLParams:
-    sigma: int
-    iterations: int
-    quality: int
+class RLDeblur(DeblurOperation):
+    """RL-deblur stage implemented via gmic.
 
+    Matches the legacy interface expected by tests: no __init__ args and
+    reads inputs from the provided Context.
+    """
 
-class DeblurStageNoOp(DeblurOperation):
-    def describe(self) -> str:
-        return "Deblur (disabled)"
-
-    def execute(self, ctx: Context) -> None:
-        # Intentionally does nothing
-        return
-
-
-class DeblurStageRL(DeblurOperation):
-    def __init__(self, s2_tif: Path, final_out: Path, p: RLParams):
-        super().__init__(tools=None)
-        self.s2_tif = s2_tif
-        self.final_out = final_out
-        self.p = p
-
-    def describe(self) -> str:
+    def describe(self) -> str:  # pragma: no cover - description only
         return "Deblur (RL via gmic)"
 
     def execute(self, ctx: Context) -> None:
@@ -37,19 +20,26 @@ class DeblurStageRL(DeblurOperation):
             raise StageError("output_dir not provided in Context")
         if ctx.cmd_gmic is None:
             raise StageError("cmd_gmic not provided in Context")
-        # Mirror the legacy command structure expected by tests
+        if ctx.outpath is None or ctx.stage_two_output_filepath is None:
+            raise StageError("outpath and stage_two_output_filepath must be set")
+
+        # Use a temporary target name to avoid issues with spaces; rename at the end
+        tmp_out = ctx.outpath.with_name(ctx.outpath.stem + "__tmp.jpg")
         args = [
             str(ctx.cmd_gmic),
-            str(self.s2_tif),
-            "-deblur_richardsonlucy",
-            f"{self.p.sigma},{self.p.iterations},1",
-            "-/",
-            "256",
-            "cut",
-            "0,255",
-            "round",
-            "-o",
-            f"{self.final_out.name},{self.p.quality}",
+            str(ctx.stage_two_output_filepath.name),
+            "-fx_sharpen_reinhard",
+            str(ctx.sigma),
+            str(ctx.iteration),
+            "-o_jpg",
+            f"{tmp_out.name},{ctx.quality}",
         ]
+        # Delegate to shared subprocess runner
         self._run_cmd(args, cwd=ctx.output_dir)
-        # Logging handled by base helper via ctx.verbose
+
+        # Rename back to requested outpath
+        tmp_path = ctx.output_dir / tmp_out.name
+        if tmp_path.exists():
+            tmp_path.replace(ctx.outpath)
+        else:
+            raise FileNotFoundError(str(tmp_path))

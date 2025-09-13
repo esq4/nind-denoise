@@ -4,24 +4,8 @@ import pathlib
 
 from bs4 import BeautifulSoup
 
-import importlib.machinery
-import importlib.util
-import pathlib
-
-# load functions from src/nind_denoise/pipeline.py explicitly
-_path = str(
-    pathlib.Path(__file__).resolve().parents[1] / "src" / "nind_denoise" / "pipeline.py"
-)
-_loader = importlib.machinery.SourceFileLoader("pipeline_local_ch", _path)
-_spec = importlib.util.spec_from_loader(_loader.name, _loader)
-_mod = importlib.util.module_from_spec(_spec)
-# register before exec to satisfy dataclasses
-import sys as _sys
-
-_sys.modules[_loader.name] = _mod
-_loader.exec_module(_mod)
-read_config = _mod.read_config
-parse_darktable_history_stack = _mod.parse_darktable_history_stack
+from nind_denoise.config import read_config
+from nind_denoise.xmp import parse_darktable_history_stack
 
 
 def test_read_config_nightmode_moves_ops(tmp_path):

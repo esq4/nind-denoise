@@ -1,3 +1,5 @@
+"""Base classes and execution helpers for pipeline operations."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -43,16 +45,16 @@ class Operation(ABC):
     # Shared helpers usable by all operations
     def _run_cmd(self, args: Sequence[str | Path], cwd: Path | None = None) -> None:
         # Defer import to avoid circular dependency during import time
-        from nind_denoise import pipeline as compat
+        from . import run_cmd as _run_cmd_shared
 
         if getattr(self, "_ctx", None):
             try:
                 if self._ctx.verbose:  # type: ignore[attr-defined]
                     logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 # Be tolerant if injected context doesn't have expected shape
                 pass
-        compat.run_cmd(args, cwd=cwd)
+        _run_cmd_shared(args, cwd=cwd)
 
 
 class ExportOperation(Operation, ABC):

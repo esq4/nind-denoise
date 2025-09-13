@@ -13,8 +13,6 @@ Context = _pipeline.Context
 RLDeblur = _pipeline.RLDeblur
 
 
-
-
 def test_rl_deblur_invokes_gmic_and_handles_spaces(tmp_path, monkeypatch):
     calls = []
 
@@ -44,8 +42,6 @@ def test_rl_deblur_invokes_gmic_and_handles_spaces(tmp_path, monkeypatch):
     assert calls and "gmic" in calls[0][0][0]
     # Original space-containing filename should be restored
     assert (tmp_path / "my photo.jpg").exists()
-
-
 
 
 def _load_denoise_module():

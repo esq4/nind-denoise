@@ -1,3 +1,9 @@
+"""Configuration loading and options for nind-denoise.
+
+Includes default config resource loading, computing valid extensions, and a
+legacy read_config used by tests for operations/history manipulation.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,9 +15,9 @@ import yaml
 
 try:
     # Python 3.12+: importlib.resources.files
-    from importlib.resources import files as _pkg_files  # type: ignore
-except Exception:  # pragma: no cover - fallback for older pythons (not expected here)
-    _pkg_files = None  # type: ignore
+    from importlib.resources import files as PKG_FILES  # type: ignore
+except Exception:  # pragma: no cover - fallback for older pythons (not expected here)  # pylint: disable=broad-exception-caught
+    PKG_FILES = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +29,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Options:
+    """Typed options for internal pipeline execution.
+
+    Note: CLI remains the stable public interface; this dataclass is used for
+    internal orchestration and testing convenience.
+    """
+
     output_path: Optional[Path]
     extension: str
     dt: Optional[Path]
@@ -47,12 +59,12 @@ def _default_cli_yaml_text() -> str:
     The file is expected at nind_denoise/configs/cli.yaml.
     """
     try:
-        if _pkg_files is None:
+        if PKG_FILES is None:
             raise RuntimeError("importlib.resources.files unavailable")
-        cfg_path = _pkg_files("nind_denoise").joinpath("configs/cli.yaml")
+        cfg_path = PKG_FILES("nind_denoise").joinpath("configs/cli.yaml")
         return cfg_path.read_text(encoding="utf-8")
-    except Exception as e:  # noqa: BLE001
-        logger.debug("Falling back to in-module defaults for cli.yaml: %s", e)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.debug("Falling back to in-module defaults for cli.yaml: %s", exc)
         # Provide a minimal inline default as a last resort
         return """
 valid_extensions:
