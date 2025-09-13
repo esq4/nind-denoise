@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import sys
 from typing import Set
 
-sys.path.append("..")
 from nind_denoise.common.libs import utilities
 
 
@@ -11,14 +9,16 @@ class JSONSaver:
     def __init__(
         self,
         jsonfpath,
-        step_type: str = ["step", "epoch"][0],
-        default={"best_val": dict()},
+        step_type: str = "step",
+        default=None,
     ):
-        self.best_key_str = "best_{}".format(step_type)  # best step/epoch #
+        if default is None:
+            default = {"best_val": {}}
+        self.best_key_str = f"best_{step_type}"  # best step/epoch #
         self.jsonfpath = jsonfpath
         self.results = utilities.jsonfpath_load(jsonfpath, default=default)
         if self.best_key_str not in self.results:
-            self.results[self.best_key_str] = dict()
+            self.results[self.best_key_str] = {}
 
     def add_res(
         self,
@@ -33,16 +33,16 @@ class JSONSaver:
     ):
         """epoch is an alias for step
         Set rm_none to True to ignore zero values"""
-        if epoch is not None and step is None:
+        if step is None and epoch is not None:
             step = epoch
-        elif (epoch is None and step is None) or step is None or epoch is not None:
+        if step is None:
             raise ValueError("JSONSaver.add_res: Must specify either step or epoch")
         if step not in self.results:
             self.results[step] = dict()
         if key_prefix != "":
-            res_ = dict()
-            for akey, aval in res.values():
-                res_[key_prefix + akey] = aval
+            res_ = {}
+            for akey, aval in res.items():
+                res_[f"{key_prefix}{akey}"] = aval
             res = res_
         for akey, aval in res.items():
             if val_type is not None:

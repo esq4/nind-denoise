@@ -1,5 +1,6 @@
 import hashlib
 import json
+import csv
 import os
 import shutil
 import statistics
@@ -12,7 +13,7 @@ def checksum(fpath, htype="sha1"):
     elif htype == "sha256":
         h = hashlib.sha256()
     else:
-        raise NotImplementedError(type)
+        raise NotImplementedError(htype)
     with open(fpath, "rb") as file:
         while True:
             # Reading is buffered, so we can read smaller chunks.
@@ -24,19 +25,20 @@ def checksum(fpath, htype="sha1"):
 
 
 def cp(inpath, outpath):
+    """Copy a file, preferring reflink when available (POSIX).
+
+    Falls back to shutil.copy2 if the 'cp' binary is not available.
+    Raises on copy errors instead of silently continuing.
+    """
     try:
-        subprocess.run(("cp", "--reflink=auto", inpath, outpath))
+        subprocess.run(("cp", "--reflink=auto", inpath, outpath), check=True)
     except FileNotFoundError:
         shutil.copy2(inpath, outpath)
 
 
 def jsonfpath_load(fpath, default_type=dict, default=None):
     if not os.path.isfile(fpath):
-        print(
-            "jsonfpath_load: warning: {} does not exist, returning default".format(
-                fpath
-            )
-        )
+        print(f"jsonfpath_load: warning: {fpath} does not exist, returning default")
         if default is None:
             return default_type()
         else:
@@ -66,20 +68,23 @@ def get_root(fpath: str) -> str:
     """
     return root directory a file (fpath) is located in.
     """
-    while fpath.endswith(os.pathsep):
-        fpath = fpath[:-1]
+    fpath = fpath.rstrip("/\\")
     return os.path.dirname(fpath)
 
 
 def avg_listofdicts(listofdicts):
-    res = dict()
-    for akey in listofdicts[0].keys():
-        res[akey] = list()
+    """Compute the mean of numeric values for each key across a list of dicts.
+
+    - If list is empty, returns an empty dict.
+    - Keys are the union of keys across all dicts; missing values are ignored.
+    """
+    if not listofdicts:
+        return {}
+    res = {}
     for adict in listofdicts:
         for akey, aval in adict.items():
-            res[akey].append(aval)
-    for akey in res.keys():
-        res[akey] = statistics.mean(res[akey])
+            res.setdefault(akey, []).append(aval)
+    return {akey: statistics.mean(vals) for akey, vals in res.items()}
 
 
 def list_of_tuples_to_csv(listoftuples, heading, fpath):

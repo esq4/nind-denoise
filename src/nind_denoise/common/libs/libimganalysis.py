@@ -14,7 +14,6 @@ except ModuleNotFoundError:
     )
 import sys
 
-sys.path.append("..")
 from nind_denoise.common.libs import pt_helpers
 
 
@@ -46,9 +45,13 @@ def get_iso(fpath):
     def exiftool_get_iso(fpath):
         cmd = "exiftool", "-S", "-ISO", fpath
         try:
-            res = subprocess.run(cmd, text=True, capture_output=True).stdout
+            res = subprocess.run(cmd, text=True, capture_output=True, check=True).stdout
         except FileNotFoundError:
-            exit("exiftool_get_iso: exiftool binary not present")
+            sys.exit("exiftool_get_iso: exiftool binary not present")
+        except subprocess.CalledProcessError as e:
+            # exiftool returned non-zero status; treat as missing/invalid EXIF
+            print(f"exiftool_get_iso: {e} on {fpath}, skipping.")
+            return None
         if res == "":
             return None
         else:
@@ -56,6 +59,7 @@ def get_iso(fpath):
                 return int(res.split(": ")[-1])
             except ValueError as e:
                 print(f"exiftool_get_iso: got {e} on {fpath}, skipping.")
+                return None
 
     ext = fpath[-4:].lower()
     isoval = None

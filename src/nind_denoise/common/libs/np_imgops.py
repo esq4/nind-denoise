@@ -24,8 +24,8 @@ def img_path_to_np_flt(fpath):
             cv2.COLOR_BGR2RGB,
         ).transpose(2, 0, 1)
     except cv2.error as e:
-        print(f"img_path_to_np_flp: error {e} with {fpath}")
-        breakpoint()
+        # Surface OpenCV errors rather than invoking a debugger
+        raise RuntimeError(f"img_path_to_np_flt: OpenCV error {e} with {fpath}") from e
     if rgb_img.dtype == np.float32:
         return rgb_img.astype(np.float32)
     if rgb_img.dtype == np.ubyte:
