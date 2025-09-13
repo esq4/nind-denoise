@@ -10,32 +10,9 @@ import pytest
 import nind_denoise.pipeline as _pipeline
 
 Context = _pipeline.Context
-NoOpDeblur = _pipeline.NoOpDeblur
 RLDeblur = _pipeline.RLDeblur
 
 
-def test_noop_deblur_does_not_invoke_subprocess(tmp_path, monkeypatch, capsys):
-    calls = []
-
-    def fake_run(*a, **k):
-        calls.append((a, k))
-        return types.SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr(_pipeline.subprocess, "run", fake_run)
-
-    outpath = tmp_path / "x.jpg"
-    ctx = Context(
-        outpath=outpath,
-        stage_two_output_filepath=tmp_path / "x_s2.tif",
-        sigma=1,
-        iteration="10",
-        quality="90",
-        cmd_gmic="gmic",
-        output_dir=tmp_path,
-        verbose=True,
-    )
-    NoOpDeblur().execute(ctx)
-    assert calls == []
 
 
 def test_rl_deblur_invokes_gmic_and_handles_spaces(tmp_path, monkeypatch):
