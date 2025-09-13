@@ -25,20 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 def import_denoise_image():
-    try:
-        import importlib
-        return importlib.import_module("nind_denoise.denoise_image")
-    except ModuleNotFoundError:
-        import importlib.machinery as _ilm
-        import importlib.util as _ilu
-        _pth = pathlib.Path(__file__).resolve().parent / "denoise_image.py"
-        _ldr = _ilm.SourceFileLoader("nind_denoise_denoise_image_local", str(_pth))
-        _spec = _ilu.spec_from_loader(_ldr.name, _ldr)
-        _mod = _ilu.module_from_spec(_spec)
-        import sys as _sys
-        _sys.modules[_ldr.name] = _mod
-        _ldr.exec_module(_mod)
-        return _mod
+    # Prefer the simple package import form
+    from nind_denoise import denoise_image
+    return denoise_image
 
 # Defaults
 DEFAULT_JPEG_QUALITY = 90

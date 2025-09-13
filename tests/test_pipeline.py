@@ -1,99 +1,13 @@
+import pathlib
+import types
 import importlib.machinery
 import importlib.util
-import pathlib
-import sys
-import types
 
 import numpy as np
 from PIL import Image
-
-# Load pipeline from src
-_path = str(
-    pathlib.Path(__file__).resolve().parents[1] / "src" / "nind_denoise" / "pipeline.py"
-)
-_loader = importlib.machinery.SourceFileLoader("pipeline_local", _path)
-_spec = importlib.util.spec_from_loader(_loader.name, _loader)
-_pipeline = importlib.util.module_from_spec(_spec)
-# Register module to satisfy dataclasses type resolution
-sys.modules[_loader.name] = _pipeline
-_loader.exec_module(_pipeline)
-
-Context = _pipeline.Context
-NoOpDeblur = _pipeline.NoOpDeblur
-RLDeblur = _pipeline.RLDeblur
-
-
-def test_noop_deblur_does_not_invoke_subprocess(tmp_path, monkeypatch, capsys):
-    calls = []
-
-    def fake_run(*a, **k):
-        calls.append((a, k))
-        return types.SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr(_pipeline.subprocess, "run", fake_run)
-
-    outpath = tmp_path / "x.jpg"
-    ctx = Context(
-        outpath=outpath,
-        stage_two_output_filepath=tmp_path / "x_s2.tif",
-        sigma=1,
-        iteration="10",
-        quality="90",
-        cmd_gmic="gmic",
-        output_dir=tmp_path,
-        verbose=True,
-    )
-    NoOpDeblur().execute(ctx)
-    assert calls == []
-
-
-def test_rl_deblur_invokes_gmic_and_handles_spaces(tmp_path, monkeypatch):
-    calls = []
-
-    def fake_run(cmd, cwd=None, check=None):
-        calls.append((cmd, cwd, check))
-        # write output file to simulate gmic behavior
-        outname = cmd[-1].split(",")[0]
-        (cwd / outname).write_text("data")
-        return types.SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr(_pipeline.subprocess, "run", fake_run)
-
-    outpath = tmp_path / "my photo.jpg"  # contains space
-    outpath.touch()
-    ctx = Context(
-        outpath=outpath,
-        stage_two_output_filepath=tmp_path / "x_s2.tif",
-        sigma=2,
-        iteration="5",
-        quality="85",
-        cmd_gmic="gmic",
-        output_dir=tmp_path,
-        verbose=False,
-    )
-    RLDeblur().execute(ctx)
-    # Ensure a gmic call was made
-    assert calls and "gmic" in calls[0][0][0]
-    # Original space-containing filename should be restored
-    assert (tmp_path / "my photo.jpg").exists()
-
-
-import importlib.machinery
-import importlib.util
-import sys
 import pytest
 
-
-# Load pipeline from src
-_path = str(
-    pathlib.Path(__file__).resolve().parents[1] / "src" / "nind_denoise" / "pipeline.py"
-)
-_loader = importlib.machinery.SourceFileLoader("pipeline_local", _path)
-_spec = importlib.util.spec_from_loader(_loader.name, _loader)
-_pipeline = importlib.util.module_from_spec(_spec)
-# Register module to satisfy dataclasses type resolution
-sys.modules[_loader.name] = _pipeline
-_loader.exec_module(_pipeline)
+import nind_denoise.pipeline as _pipeline
 
 Context = _pipeline.Context
 NoOpDeblur = _pipeline.NoOpDeblur
@@ -153,6 +67,8 @@ def test_rl_deblur_invokes_gmic_and_handles_spaces(tmp_path, monkeypatch):
     assert calls and "gmic" in calls[0][0][0]
     # Original space-containing filename should be restored
     assert (tmp_path / "my photo.jpg").exists()
+
+
 
 
 def _load_denoise_module():

@@ -7,21 +7,7 @@ import typer
 logger = logging.getLogger(__name__)
 
 # valid_extensions is sourced from the pipeline to keep a single definition
-try:
-    from nind_denoise.pipeline import valid_extensions  # type: ignore
-except ModuleNotFoundError:
-    # Fallback dynamic import for src-layout checkouts
-    import importlib.machinery as _ilm
-    import importlib.util as _ilu
-
-    _pth = pathlib.Path(__file__).resolve().parent / "nind_denoise" / "pipeline.py"
-    _ldr = _ilm.SourceFileLoader("pipeline_local_validext", str(_pth))
-    _spec = _ilu.spec_from_loader(_ldr.name, _ldr)
-    _mod = _ilu.module_from_spec(_spec)
-    import sys as _sys
-    _sys.modules[_ldr.name] = _mod
-    _ldr.exec_module(_mod)
-    valid_extensions = _mod.valid_extensions  # type: ignore
+from nind_denoise.pipeline import valid_extensions, run_pipeline  # type: ignore
 
 
 def cli(
@@ -86,21 +72,6 @@ def cli(
         "--verbose": verbose,
     }
 
-    # Import pipeline entry point directly
-    try:
-        from nind_denoise.pipeline import run_pipeline  # type: ignore
-    except ModuleNotFoundError:
-        import importlib.machinery as _ilm
-        import importlib.util as _ilu
-
-        _pth = pathlib.Path(__file__).resolve().parent / "nind_denoise" / "pipeline.py"
-        _ldr = _ilm.SourceFileLoader("pipeline_local", str(_pth))
-        _spec = _ilu.spec_from_loader(_ldr.name, _ldr)
-        _mod = _ilu.module_from_spec(_spec)
-        import sys as _sys
-        _sys.modules[_ldr.name] = _mod
-        _ldr.exec_module(_mod)
-        run_pipeline = _mod.run_pipeline  # type: ignore
 
     if raw_image.is_dir():
         for file in raw_image.iterdir():
