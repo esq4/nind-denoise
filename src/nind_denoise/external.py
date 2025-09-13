@@ -3,9 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
-from typing import Optional
+import subprocess as subprocess  # re-exportable for monkeypatching
+import logging
+from typing import Optional, Iterable
 
 from .exceptions import ExternalToolNotFound
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -17,6 +21,16 @@ class Tools:
 def _which(name: str) -> Optional[Path]:
     found = shutil.which(name)
     return Path(found) if found else None
+
+
+def run_cmd(args: Iterable[Path | str], cwd: Optional[Path] = None) -> None:
+    """Run a subprocess command with logging and optional cwd.
+
+    Exposed here to give tests a single place to monkeypatch process execution.
+    """
+    cmd = [str(a) for a in args]
+    logger.debug("Running: %s (cwd=%s)", " ".join(cmd), cwd)
+    subprocess.run(cmd, cwd=None if cwd is None else str(cwd), check=True)
 
 
 def resolve_tools(dt_opt: Optional[Path] | None, gmic_opt: Optional[Path] | None) -> Tools:

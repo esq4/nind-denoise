@@ -5,15 +5,13 @@ from __future__ import annotations
 import logging
 import pathlib
 import shutil
-import subprocess as subprocess  # re-exported for tests to monkeypatch
 from typing import Iterable
-
-import exiv2
 
 from ..config import valid_extensions
 from ..config import read_config
 from ..xmp import parse_darktable_history_stack
-from ..external import resolve_tools
+from ..external import resolve_tools, run_cmd, subprocess
+from ..exif import clone_exif
 
 from .base import Context
 from .deblur import RLDeblur
@@ -40,28 +38,9 @@ DEFAULT_RL_SIGMA = 1
 DEFAULT_RL_ITERATIONS = 10
 
 
-def run_cmd(args: Iterable[pathlib.Path | str], cwd: pathlib.Path | None = None) -> None:
-    """Run a subprocess command with logging and cwd handling."""
-    cmd = [str(a) for a in args]
-    logger.debug("Running: %s (cwd=%s)", " ".join(cmd), cwd)
-    subprocess.run(cmd, cwd=None if cwd is None else str(cwd), check=True)
 
 
 
-def clone_exif(src_file: pathlib.Path, dst_file: pathlib.Path, verbose: bool = False) -> None:
-    """Clone EXIF metadata from src_file to dst_file using exiv2."""
-    try:
-        src_image = exiv2.ImageFactory.open(str(src_file))
-        src_image.readMetadata()
-        dst_image = exiv2.ImageFactory.open(str(dst_file))
-        dst_image.setExifData(src_image.exifData())
-        dst_image.writeMetadata()
-    except Exception as exc:  # pylint: disable=broad-exception-caught
-        if verbose:
-            logger.error("Error while copying EXIF data: %s", exc)
-        raise
-    if verbose:
-        logger.info("Copied EXIF from %s to %s", src_file, dst_file)
 
 
 
