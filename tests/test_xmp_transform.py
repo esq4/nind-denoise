@@ -1,4 +1,4 @@
-from nind_denoise import xmp
+import nind_denoise
 
 
 SAMPLE_XMP = """
@@ -30,8 +30,10 @@ def _fake_config():
 
 
 def test_build_xmp_stage1_filters_and_disables_flip(monkeypatch):
-    monkeypatch.setattr(xmp, "read_config", lambda verbose=False: _fake_config())
-    out = xmp.build_xmp(SAMPLE_XMP, stage=1, verbose=True)
+    monkeypatch.setattr(
+        nind_denoise.xmp, "read_config", lambda verbose=False: _fake_config()
+    )
+    out = nind_denoise.xmp.build_xmp(SAMPLE_XMP, stage=1, verbose=True)
     assert "demosaic" in out
     assert "flip" in out and 'darktable:enabled="0"' in out
     assert "colorout" not in out
@@ -39,22 +41,26 @@ def test_build_xmp_stage1_filters_and_disables_flip(monkeypatch):
 
 
 def test_build_xmp_stage2_filters_and_updates_iop_order(monkeypatch):
-    monkeypatch.setattr(xmp, "read_config", lambda verbose=False: _fake_config())
-    out = xmp.build_xmp(SAMPLE_XMP, stage=2)
+    monkeypatch.setattr(
+        nind_denoise.xmp, "read_config", lambda verbose=False: _fake_config()
+    )
+    out = nind_denoise.xmp.build_xmp(SAMPLE_XMP, stage=2)
     assert "colorout" in out
     # Ensure the demosaic operation was removed from the history (iop_order may still mention it)
     assert 'darktable:operation="demosaic"' not in out
     # iop order tweaks
     assert 'darktable:iop_order_version="5"' in out
-    assert 'demosaic,0,colorin,0' in out or 'colorin,0' not in out
+    assert "demosaic,0,colorin,0" in out or "colorin,0" not in out
 
 
 def test_write_xmp_file_roundtrip(tmp_path, monkeypatch):
-    monkeypatch.setattr(xmp, "read_config", lambda verbose=False: _fake_config())
+    monkeypatch.setattr(
+        nind_denoise.xmp, "read_config", lambda verbose=False: _fake_config()
+    )
     src = tmp_path / "in.xmp"
     dst = tmp_path / "out.xmp"
     src.write_text(SAMPLE_XMP, encoding="utf-8")
-    xmp.write_xmp_file(src, dst, stage=1)
+    nind_denoise.xmp.write_xmp_file(src, dst, stage=1)
     assert dst.exists()
     text = dst.read_text(encoding="utf-8")
     assert "demosaic" in text and "colorout" not in text

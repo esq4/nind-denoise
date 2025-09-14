@@ -58,7 +58,8 @@ dependencies = [
 test = [
     "pylint>=3.3.8",
     "pytest>=8.4.2",
-    "nind-denoise"
+    "nind-denoise",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.setuptools]
@@ -72,12 +73,6 @@ where = ["src"]
 
 [tool.pylint.messages_control]
 # Do not disable pylint messaging
-enable = [
-  "missing-module-docstring",
-  "missing-class-docstring",
-  "missing-function-docstring",
-  "import-outside-toplevel",
-]
 
 [tool.pylint.format]
 max-line-length = 100
