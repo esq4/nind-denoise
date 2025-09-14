@@ -7,6 +7,54 @@ import typer
 logger = logging.getLogger(__name__)
 
 
+def _build_args_dict(
+    output_path: pathlib.Path | None,
+    extension: str,
+    dt: pathlib.Path | None,
+    gmic: pathlib.Path | None,
+    quality: int,
+    nightmode: bool,
+    no_deblur: bool,
+    debug: bool,
+    sigma: int,
+    iterations: int,
+    verbose: bool,
+) -> dict:
+    """Construct the args dict consumed by the pipeline.
+
+    Split out to keep the CLI thin and improve readability/testability.
+    """
+    return {
+        "--output-path": str(output_path) if output_path else None,
+        "--extension": extension,
+        "--dt": str(dt) if dt else None,
+        "--gmic": str(gmic) if gmic else None,
+        "--quality": quality,
+        "--nightmode": nightmode,
+        "--no_deblur": no_deblur,
+        "--debug": debug,
+        "--sigma": sigma,
+        "--iterations": iterations,
+        "--verbose": verbose,
+    }
+
+
+def _process_inputs(raw_image: pathlib.Path, args: dict) -> None:
+    """Dispatch processing over a single file or a directory tree."""
+    from nind_denoise.pipeline import run_pipeline  # type: ignore
+    from nind_denoise.config import valid_extensions
+
+    if raw_image.is_dir():
+        for file in raw_image.iterdir():
+            if file.suffix.lower() in valid_extensions:
+                logger.info(
+                    "----------------------- %s -------------------------", file.name
+                )
+                run_pipeline(args, file)
+    else:
+        run_pipeline(args, raw_image)
+
+
 def cli(
     raw_image: pathlib.Path = typer.Argument(
         ..., help="Path to a RAW image file or directory."
@@ -55,34 +103,22 @@ def cli(
     This Typer command accepts a RAW image or directory and orchestrates the
     denoise pipeline with options for output, tools, and deblurring.
     """
-    args = {
-        "--output-path": str(output_path) if output_path else None,
-        "--extension": extension,
-        "--dt": str(dt) if dt else None,
-        "--gmic": str(gmic) if gmic else None,
-        "--quality": quality,
-        "--nightmode": nightmode,
-        "--no_deblur": no_deblur,
-        "--debug": debug,
-        "--sigma": sigma,
-        "--iterations": iterations,
-        "--verbose": verbose,
-    }
+    args = _build_args_dict(
+        output_path=output_path,
+        extension=extension,
+        dt=dt,
+        gmic=gmic,
+        quality=quality,
+        nightmode=nightmode,
+        no_deblur=no_deblur,
+        debug=debug,
+        sigma=sigma,
+        iterations=iterations,
+        verbose=verbose,
+    )
 
-    # Import pipeline lazily to avoid importing heavy optional dependencies
-    # when only requesting CLI help or metadata.
-    from nind_denoise.pipeline import run_pipeline  # type: ignore
-    from nind_denoise.config import valid_extensions
-
-    if raw_image.is_dir():
-        for file in raw_image.iterdir():
-            if file.suffix.lower() in valid_extensions:
-                logger.info(
-                    "----------------------- %s -------------------------", file.name
-                )
-                run_pipeline(args, file)
-    else:
-        run_pipeline(args, raw_image)
+    # Import and process lazily to avoid heavy deps on --help
+    _process_inputs(raw_image, args)
 
 
 if __name__ == "__main__":
