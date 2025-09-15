@@ -1,9 +1,10 @@
-import torch
-import torch.nn.functional as F
 from typing import Optional
 
-from .rl_config import RLConfig
+import torch
+import torch.nn.functional as F
+
 from .gaussian_kernel import GaussianKernel
+from .rl_config import RLConfig
 
 _EPS = 1e-8
 
@@ -15,8 +16,11 @@ class RichardsonLucyDeconvolution:
     def _depthwise_conv2d(x: torch.Tensor, k: torch.Tensor, pad_mode: str) -> torch.Tensor:
         N, C, H, W = x.shape
         kh, kw = k.shape
-        pad_h = kh // 2
-        pad_w = kw // 2
+
+        # Limit padding to prevent exceeding input dimensions
+        pad_h = min(kh // 2, H - 1)
+        pad_w = min(kw // 2, W - 1)
+        
         x_pad = F.pad(x, (pad_w, pad_w, pad_h, pad_h), mode=pad_mode)
         w = k.expand(C, 1, kh, kw)
         return F.conv2d(x_pad, w, bias=None, stride=1, padding=0, groups=C)
@@ -38,8 +42,11 @@ class RichardsonLucyDeconvolution:
 
         x = x.unsqueeze(0).to(device)
 
+        # Get the spatial dimensions for kernel size limiting
+        _, _, H, W = x.shape
         kernel_generator = GaussianKernel(self.config.sigma)
-        k = kernel_generator.generate_kernel(device=device, dtype=x.dtype)
+        # Pass image dimensions to limit kernel size appropriately
+        k = kernel_generator.generate_kernel(device=device, dtype=x.dtype, max_size=(H, W))
         k_flip = torch.flip(k, dims=(0, 1))
 
         y = x.clone()

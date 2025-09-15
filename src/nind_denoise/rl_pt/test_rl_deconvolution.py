@@ -1,11 +1,13 @@
 import torch
+
 from .richardson_lucy_deconvolution import richardson_lucy_gaussian
 
+
 def test_richardson_lucy_gaussian_basic():
-    # Create a simple test image (3x3 with one channel)
-    image = torch.tensor([[1.0, 2.0, 3.0],
-                          [4.0, 5.0, 6.0],
-                          [7.0, 8.0, 9.0]], dtype=torch.float32).unsqueeze(2)
+    # Create a simple test image (3x3 with two channels) to ensure at least 2 pixels in each dimension
+    image = torch.tensor([[[1.0, 1.0], [2.0, 2.0], [3.0, 3.0]],
+                          [[4.0, 4.0], [5.0, 5.0], [6.0, 6.0]],
+                          [[7.0, 7.0], [8.0, 8.0], [9.0, 9.0]]], dtype=torch.float32)
 
     sigma = 1.0
     iterations = 5
@@ -16,10 +18,10 @@ def test_richardson_lucy_gaussian_basic():
     assert (result <= 1).all()
 
 def test_richardson_lucy_gaussian_with_uint8():
-    # Create a simple test image (3x3 with one channel) using uint8
-    image = torch.tensor([[255, 127, 63],
-                          [191, 127, 63],
-                          [127, 191, 255]], dtype=torch.uint8).unsqueeze(2)
+    # Create a simple test image (3x3 with two channels) using uint8
+    image = torch.tensor([[[255, 255], [127, 127], [63, 63]],
+                          [[191, 191], [127, 127], [63, 63]],
+                          [[127, 127], [191, 191], [255, 255]]], dtype=torch.uint8)
 
     sigma = 0.5
     iterations = 3
