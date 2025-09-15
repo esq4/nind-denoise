@@ -86,12 +86,7 @@ def cli(
         "--verbose": verbose,
     }
 
-    # Import pipeline entry point directly
-    try:
-        from nind_denoise.pipeline import run_pipeline  # type: ignore
-    except ModuleNotFoundError:
-        import importlib.machinery as _ilm
-        import importlib.util as _ilu
+    from nind_denoise.pipeline import run_pipeline
 
         _pth = pathlib.Path(__file__).resolve().parent / "nind_denoise" / "pipeline.py"
         _ldr = _ilm.SourceFileLoader("pipeline_local", str(_pth))

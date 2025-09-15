@@ -59,3 +59,11 @@ dev = [
     "pylint>=3.3.8",
     "pytest>=8.4.2",
 ]
+test = [
+    "nind-denoise",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+]
+
+[tool.uv.sources]
+nind-denoise = { workspace = true }

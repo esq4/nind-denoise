@@ -6,39 +6,25 @@ The top-level entry point is run_pipeline(args: dict, input_path: Path).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from abc import ABC, abstractmethod
 import copy
 import io
 import logging
 import pathlib
 import shutil
 import subprocess
-import sys
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Iterable
 
 import exiv2
 import yaml
 from bs4 import BeautifulSoup
+from PIL import Image
+import numpy as np
+import torch
+from nind_denoise.rl_pt import richardson_lucy_gaussian
 
 logger = logging.getLogger(__name__)
-
-
-def import_denoise_image():
-    try:
-        import importlib
-        return importlib.import_module("nind_denoise.denoise_image")
-    except ModuleNotFoundError:
-        import importlib.machinery as _ilm
-        import importlib.util as _ilu
-        _pth = pathlib.Path(__file__).resolve().parent / "denoise_image.py"
-        _ldr = _ilm.SourceFileLoader("nind_denoise_denoise_image_local", str(_pth))
-        _spec = _ilu.spec_from_loader(_ldr.name, _ldr)
-        _mod = _ilu.module_from_spec(_spec)
-        import sys as _sys
-        _sys.modules[_ldr.name] = _mod
-        _ldr.exec_module(_mod)
-        return _mod
 
 # Defaults
 DEFAULT_JPEG_QUALITY = 90
@@ -143,6 +129,45 @@ class RLDeblur(DeblurStage):
         run_cmd(args, cwd=output_dir)
         if ctx.verbose:
             logger.info("Applied RL-deblur to: %s", outpath)
+
+
+class RLDeblurPT(DeblurStage):
+    """PyTorch implementation of the RL deblur stage.
+
+    This stage mirrors the behavior of :class:`RLDeblur` but uses a pure Python
+    PyTorch backend instead of invoking the external `gmic` CLI.
+    """
+
+    def execute(self, ctx: Context) -> None:
+        outpath = pathlib.Path(ctx.outpath)
+        s2 = pathlib.Path(ctx.stage_two_output_filepath)
+        sigma = float(ctx.sigma)
+        iterations = int(ctx.iteration)
+        quality = int(ctx.quality)
+
+        if not s2.exists():
+            raise FileNotFoundError(f"Stage-2 input not found: {s2}")
+
+        # Load stage-2 TIFF (or other) as RGB, obtain HxWxC uint8 array
+        with Image.open(s2) as im:
+            im = im.convert("RGB")
+            img_np = np.array(im, dtype=np.uint8)
+        img_tensor = torch.from_numpy(img_np)  # HxWxC, uint8
+
+        # Run RL on torch
+        deblur = richardson_lucy_gaussian(img_tensor, sigma=sigma, iterations=iterations)
+
+        # Convert back to PIL and save with quality
+        if deblur.dtype == torch.uint8:
+            out_np = deblur.cpu().numpy()
+        else:
+            out_np = (deblur.clamp(0, 1) * 255.0).round().to(torch.uint8).cpu().numpy()
+        out_img = Image.fromarray(out_np, mode="RGB")
+        outpath.parent.mkdir(parents=True, exist_ok=True)
+        out_img.save(outpath, quality=quality)
+
+        if ctx.verbose:
+            logger.info("Applied RL-deblur (PyTorch) to: %s", outpath)
 
 
 # Utility and helpers moved from denoise.py
