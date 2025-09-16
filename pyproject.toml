@@ -71,12 +71,11 @@ where = ["src"]
 [tool.setuptools.package-data]
 "nind_denoise" = ["configs/*.yaml"]
 
-[tool.pylint.messages_control]
-# Do not disable pylint messaging
+test = [
+    "nind-denoise",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+]
 
-[tool.pylint.format]
-max-line-length = 100
-
-[tool.pylint.typecheck]
-# OpenCV exposes attributes dynamically; suppress false positives here.
-generated-members = ["cv2.*"]
+[tool.uv.sources]
+nind-denoise = { workspace = true }

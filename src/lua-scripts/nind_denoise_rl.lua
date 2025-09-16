@@ -1,3 +1,4 @@
+
 --[[
   darktable is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -35,38 +36,42 @@
     * from "export selected", choose "nind-denoise RL" as target storage
     * for "format options", either TIFF 8-bit or 16-bit is recommended
 ]]
+-- =============================================
+-- MODULE SETUP AND DEPENDENCIES
+-- =============================================
 
 local dt = require "darktable"
 local du = require "lib/dtutils"
 local df = require "lib/dtutils.file"
 local dtsys = require "lib/dtutils.system"
 
--- module name
+-- Module configuration
 local MODULE_NAME = "nind_denoise_rl"
 
--- check API version
+-- Check API version compatibility
 du.check_min_api_version("7.0.0", MODULE_NAME)
 
--- return data structure for script_manager
+-- Script data structure for script_manager integration
+local script_data = {
+  destroy = nil, -- Function to destroy the script
+  destroy_method = nil, -- Set to hide for libs since we can't destroy them completely yet
+  restart = nil -- How to restart the (lib) script after it's been hidden
+}
 
-local script_data = {}
+-- OS compatibility path separator
+local PS = dt.configuration.running_os == "windows" and "\\" or "/"
 
-script_data.destroy = nil -- function to destory the script
-script_data.destroy_method = nil -- set to hide for libs since we can't destroy them commpletely yet, otherwise leave as nil
-script_data.restart = nil -- how to restart the (lib) script after it's been hidden - i.e. make it visible again
-
--- OS compatibility
-local PS = dt.configuration.running_os == "windows" and  "\\"  or  "/"
-
--- translation
+-- Translation setup
 local gettext = dt.gettext
 gettext.bindtextdomain(MODULE_NAME, dt.configuration.config_dir..PS.."lua"..PS.."locale"..PS)
-local function _(msgid)
-  return gettext.dgettext(MODULE_NAME, msgid)
-end
+local function _(msgid) return gettext.dgettext(MODULE_NAME, msgid) end
 
--- initialize module preferences
+-- =============================================
+-- MODULE PREFERENCES INITIALIZATION
+-- =============================================
+
 if not dt.preferences.read(MODULE_NAME, "initialized", "bool") then
+  -- Initialize default preferences
   dt.preferences.write(MODULE_NAME, "output_path", "string", "$(FILE_FOLDER)/darktable_exported/$(FILE_NAME)")
   dt.preferences.write(MODULE_NAME, "output_format", "integer", 1)
   dt.preferences.write(MODULE_NAME, "sigma", "string", "1")
@@ -75,45 +80,22 @@ if not dt.preferences.read(MODULE_NAME, "initialized", "bool") then
   dt.preferences.write(MODULE_NAME, "initialized", "bool", true)
 end
 
+-- =============================================
+-- UI WIDGETS AND CONFIGURATION
+-- =============================================
 
--- namespace variable
-local NDRL = {};
-
-local function denoise_rldeblur_toggled()
-  NDRL.sigma_slider.sensitive = NDRL.rl_deblur_chkbox.value
-  NDRL.iterations_slider.sensitive = NDRL.rl_deblur_chkbox.value
-
-  -- hide the output format if neither checkboxes selected
-  local passthrough = NDRL.rl_deblur_chkbox.value == false and NDRL.denoise_chkbox.value == false
-  NDRL.output_format.visible = not passthrough
-  NDRL.jpg_quality_slider.visible = not passthrough
-end
-
-
-local function output_format_changed()
-  if NDRL.output_format == nil then
-    return true
-  end
-
-  if NDRL.output_format.selected == 1 then
-    NDRL.jpg_quality_slider.visible = true
-  else
-    NDRL.jpg_quality_slider.visible = false
-  end
-
-  dt.preferences.write(MODULE_NAME, "output_format", "integer", NDRL.output_format.selected)
-end
-
-
--- namespace variable
-NDRL = {
+local NDRL = {
   substitutes = {},
-  placeholders = {"ROLL_NAME","FILE_FOLDER","FILE_NAME","FILE_EXTENSION","ID","VERSION","SEQUENCE","YEAR","MONTH","DAY",
-                  "HOUR","MINUTE","SECOND","EXIF_YEAR","EXIF_MONTH","EXIF_DAY","EXIF_HOUR","EXIF_MINUTE","EXIF_SECOND",
-                  "STARS","LABELS","MAKER","MODEL","TITLE","CREATOR","PUBLISHER","RIGHTS","USERNAME","PICTURES_FOLDER",
-                  "HOME","DESKTOP","EXIF_ISO","EXIF_EXPOSURE","EXIF_EXPOSURE_BIAS","EXIF_APERTURE","EXIF_FOCUS_DISTANCE",
-                  "EXIF_FOCAL_LENGTH","LONGITUDE","LATITUDE","ELEVATION","LENS","DESCRIPTION","EXIF_CROP"},
+  placeholders = {
+    "ROLL_NAME","FILE_FOLDER","FILE_NAME","FILE_EXTENSION","ID","VERSION","SEQUENCE",
+    "YEAR","MONTH","DAY","HOUR","MINUTE","SECOND","EXIF_YEAR","EXIF_MONTH","EXIF_DAY",
+    "EXIF_HOUR","EXIF_MINUTE","EXIF_SECOND","STARS","LABELS","MAKER","MODEL","TITLE",
+    "CREATOR","PUBLISHER","RIGHTS","USERNAME","PICTURES_FOLDER","HOME","DESKTOP",
+    "EXIF_ISO","EXIF_EXPOSURE","EXIF_EXPOSURE_BIAS","EXIF_APERTURE","EXIF_FOCUS_DISTANCE",
+    "EXIF_FOCAL_LENGTH","LONGITUDE","LATITUDE","ELEVATION","LENS","DESCRIPTION","EXIF_CROP"
+  },
 
+  -- Output folder path entry widget
   output_folder_path = dt.new_widget("entry") {
     tooltip = _("$(ROLL_NAME) - film roll name\n") ..
               _("$(FILE_FOLDER) - image file folder\n") ..
@@ -162,6 +144,7 @@ NDRL = {
     editable = true,
   },
 
+  -- Output folder selector widget
   output_folder_selector = dt.new_widget("file_chooser_button") {
     title = _("select output folder"),
     tooltip = _("select output folder"),
@@ -172,6 +155,7 @@ NDRL = {
     end
   },
 
+  -- Output format selection widget
   output_format = dt.new_widget("combobox") {
     label = _("output format"),
     editable = false,
@@ -181,6 +165,7 @@ NDRL = {
     changed_callback = function(self) output_format_changed() end
   },
 
+  -- JPEG quality slider widget
   jpg_quality_slider = dt.new_widget("slider") {
     label = _("output jpg quality"),
     tooltip = _("quality of the output jpg file"),
@@ -193,18 +178,21 @@ NDRL = {
     value = 95.0,
   },
 
+  -- Denoise checkbox widget
   denoise_chkbox = dt.new_widget("check_button") {
     label = _("apply nind-denoise"),
     tooltip = _("apply nind-denoise"),
-    clicked_callback = function(self) denoise_rldeblur_toggled() end
+    clicked_callback = function(self) toggle_processing_options() end
   },
 
+  -- RL deblur checkbox widget
   rl_deblur_chkbox = dt.new_widget("check_button") {
     label = _("apply RL deblur"),
     tooltip = _("apply GMic's Richardson-Lucy deblur/sharpening"),
-    clicked_callback = function(self) denoise_rldeblur_toggled() end
+    clicked_callback = function(self) toggle_processing_options() end
   },
 
+  -- Sigma slider for RL deblur
   sigma_slider = dt.new_widget("slider") {
     label = _("sigma"),
     tooltip = _("controls the width of the blur that's applied"),
@@ -217,6 +205,7 @@ NDRL = {
     value = 1.0
   },
 
+  -- Iterations slider for RL deblur
   iterations_slider = dt.new_widget("slider") {
     label = _("iterations"),
     tooltip = _("increase for better sharpening, but slower"),
@@ -230,61 +219,72 @@ NDRL = {
   }
 }
 
+-- =============================================
+-- UI CALLBACK FUNCTIONS
+-- =============================================
 
+-- Toggle processing options visibility based on checkbox states
+local function toggle_processing_options()
+  NDRL.sigma_slider.sensitive = NDRL.rl_deblur_chkbox.value
+  NDRL.iterations_slider.sensitive = NDRL.rl_deblur_chkbox.value
 
-
--- temp export formats: jpg and tif are supported -----------------------------
-local function supported(storage, img_format)
-  -- only accept TIF for lossless intermediate file.
-  -- JPG compression inteferes with denoising
-  return (img_format.extension == "tif")
+  -- Hide output format options if neither processing is enabled
+  local passthrough = not NDRL.rl_deblur_chkbox.value and not NDRL.denoise_chkbox.value
+  NDRL.output_format.visible = not passthrough
+  NDRL.jpg_quality_slider.visible = not passthrough and NDRL.output_format.selected == 1
 end
 
+-- Handle output format changes
+local function output_format_changed()
+  if NDRL.output_format == nil then return true end
 
+  local is_jpg = NDRL.output_format.selected == 1
+  NDRL.jpg_quality_slider.visible = is_jpg
 
--- shamelessly copied the pattern-replacement functions from rename_images.lua
+  dt.preferences.write(MODULE_NAME, "output_format", "integer", NDRL.output_format.selected)
+end
+
+-- =============================================
+-- FILE FORMAT SUPPORT CHECK
+-- =============================================
+
+-- Check if the image format is supported for processing
+local function is_supported(storage, img_format)
+  -- Only accept TIF for lossless intermediate file (JPG compression interferes with denoising)
+  return img_format.extension == "tif"
+end
+
+-- =============================================
+-- STRING SUBSTITUTION FUNCTIONS
+-- =============================================
+
+-- Build substitution list from image metadata
 local function build_substitution_list(image, sequence, datetime, username, pic_folder, home, desktop)
-   -- build the argument substitution list from each image
-   -- local datetime = os.date("*t")
-   local colorlabels = {}
-   if image.red then table.insert(colorlabels, "red") end
-   if image.yellow then table.insert(colorlabels, "yellow") end
-   if image.green then table.insert(colorlabels, "green") end
-   if image.blue then table.insert(colorlabels, "blue") end
-   if image.purple then table.insert(colorlabels, "purple") end
-   local labels = #colorlabels == 1 and colorlabels[1] or du.join(colorlabels, ",")
-   local eyear,emon,eday,ehour,emin,esec = string.match(image.exif_datetime_taken, "(%d-):(%d-):(%d-) (%d-):(%d-):(%d-)$")
-   local replacements = {image.film,
-                         image.path,
-                         df.get_filename(image.filename),
-                         string.upper(df.get_filetype(image.filename)),
-                         image.id,image.duplicate_index,
-                         string.format("%04d", sequence),
-                         datetime.year,
-                         string.format("%02d", datetime.month),
-                         string.format("%02d", datetime.day),
-                         string.format("%02d", datetime.hour),
-                         string.format("%02d", datetime.min),
-                         string.format("%02d", datetime.sec),
-                         eyear,
-                         emon,
-                         eday,
-                         ehour,
-                         emin,
-                         esec,
-                         image.rating,
-                         labels,
-                         image.exif_maker,
-                         image.exif_model,
-                         image.title,
-                         image.creator,
-                         image.publisher,
-                         image.rights,
-                         username,
-                         pic_folder,
-                         home,
-                         desktop,
-                         image.exif_iso,
+  local colorlabels = {}
+  if image.red then table.insert(colorlabels, "red") end
+  if image.yellow then table.insert(colorlabels, "yellow") end
+  if image.green then table.insert(colorlabels, "green") end
+  if image.blue then table.insert(colorlabels, "blue") end
+  if image.purple then table.insert(colorlabels, "purple") end
+
+  local labels = #colorlabels == 1 and colorlabels[1] or du.join(colorlabels, ",")
+  local eyear, emon, eday, ehour, emin, esec = string.match(image.exif_datetime_taken, "(%d-):(%d-):(%d-) (%d-):(%d-):(%d-)$")
+
+  local replacements = {
+    image.film, image.path, df.get_filename(image.filename), string.upper(df.get_filetype(image.filename)),
+    image.id, image.duplicate_index, string.format("%04d", sequence),
+    datetime.year, string.format("%02d", datetime.month), string.format("%02d", datetime.day),
+    string.format("%02d", datetime.hour), string.format("%02d", datetime.min), string.format("%02d", datetime.sec),
+    eyear, emon, eday, ehour, emin, esec,
+    image.rating, labels, image.exif_maker, image.exif_model, image.title,
+    image.creator, image.publisher, image.rights, username, pic_folder,
+    home, desktop, image.exif_iso, image.exif_exposure, image.exif_exposure_bias,
+    image.exif_aperture, image.exif_focus_distance, image.exif_focal_length,
+    image.longitude, image.latitude, image.elevation, image.exif_lens,
+    image.description, image.exif_crop
+  }
+
+  -- Populate substitutes table
                          image.exif_exposure,
                          image.exif_exposure_bias,
                          image.exif_aperture,
