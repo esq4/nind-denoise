@@ -6,7 +6,7 @@ from typing import Dict, Type
 
 # Stage types and defaults
 from .base import Context, DeblurOperation, DenoiseOperation, ExportOperation
-from .deblur import RLDeblur
+from .deblur import RLDeblur, RLDeblurPT
 from .denoise import DenoiseOptions, DenoiseStage
 from .export import ExportStage
 from .orchestrator import (
@@ -23,7 +23,7 @@ from ..exif import clone_exif
 # Simple registries (extensible)
 _EXPORTERS: Dict[str, Type[ExportOperation]] = {"darktable": ExportStage}
 _DENOISERS: Dict[str, Type[DenoiseOperation]] = {"nind_pt": DenoiseStage}
-_DEBLUR: Dict[str, Type[DeblurOperation]] = {"gmic": RLDeblur}
+_DEBLUR: Dict[str, Type[DeblurOperation]] = {"gmic": RLDeblur, "pt_rl": RLDeblurPT}
 
 
 def register_exporter(name: str, cls: Type[ExportOperation]) -> None:
@@ -61,6 +61,7 @@ __all__ = [
     "subprocess",
     "ExportStage",
     "RLDeblur",
+    "RLDeblurPT",
     "DenoiseStage",
     "DenoiseOptions",
     "register_exporter",

@@ -49,3 +49,10 @@ class DenoiseStage(DenoiseOperation):
         _dim.run_from_args(args)
         if not self.s1_denoised_tif.exists():
             raise StageError(f"denoise did not create: {self.s1_denoised_tif}")
+
+    def verify(self, ctx: Context | None = None) -> None:
+        """Verify that the denoised output file was created successfully."""
+        if not self.s1_denoised_tif.exists():
+            raise StageError(
+                f"Denoise stage expected output missing: {self.s1_denoised_tif}"
+            )

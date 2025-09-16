@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from .base import Context, DeblurOperation, StageError
+from ..base import Context, DeblurOperation, StageError
 
 logger = logging.getLogger(__name__)
 
