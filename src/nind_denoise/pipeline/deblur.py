@@ -67,3 +67,19 @@ class RLDeblur(DeblurOperation):
             return
         if not ctx.outpath.exists():
             raise StageError(f"Deblur stage expected output missing: {ctx.outpath}")
+
+
+class NoOpDeblur(DeblurOperation):
+    """A no-op deblur stage for disabling deblurring while preserving pipeline shape."""
+
+    def describe(self) -> str:  # pragma: no cover - description only
+        return "Deblur (no-op)"
+
+    def execute(self, ctx: Context) -> None:
+        # Intentionally do nothing; assume previous output is the final image
+        if getattr(ctx, "verbose", False):
+            logger.info("Deblur disabled; skipping.")
+        # No verification strictness here; caller may still perform final checks
+
+    def verify(self, ctx: Context | None = None) -> None:  # pragma: no cover - trivial
+        return

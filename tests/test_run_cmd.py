@@ -33,6 +33,7 @@ def test_run_cmd_raises_on_failure(monkeypatch):
     monkeypatch.setattr(config.subprocess, "run", fake_run)
 
     import pytest
+    from nind_denoise.exceptions import SubprocessError
 
-    with pytest.raises(config.subprocess.CalledProcessError):
+    with pytest.raises(SubprocessError):
         config.run_cmd(["false"])  # any command; our fake raises regardless

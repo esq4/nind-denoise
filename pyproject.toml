@@ -58,7 +58,6 @@ dependencies = [
 test = [
     "pylint>=3.3.8",
     "pytest>=8.4.2",
-    "nind-denoise",
     "pytest-cov>=7.0.0",
 ]
 
@@ -70,12 +69,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "nind_denoise" = ["configs/*.yaml"]
-
-test = [
-    "nind-denoise",
-    "pytest>=8.4.2",
-    "pytest-cov>=7.0.0",
-]
 
 [tool.uv.sources]
 nind-denoise = { workspace = true }

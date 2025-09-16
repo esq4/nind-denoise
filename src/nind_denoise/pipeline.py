@@ -1,7 +1,9 @@
-"""Denoise pipeline orchestration and stages.
+"""Denoise pipeline orchestration and stages (LEGACY).
 
-This module contains all subprocess-calling logic formerly in denoise.py.
-The top-level entry point is run_pipeline(args: dict, input_path: Path).
+DEPRECATED: This monolithic module is kept for backward compatibility only.
+Use the stage-based implementation under `nind_denoise.pipeline` package
+(e.g., nind_denoise.pipeline.run_pipeline) instead. This module may be
+removed in a future release.
 """
 
 from __future__ import annotations
@@ -12,19 +14,26 @@ import logging
 import pathlib
 import shutil
 import subprocess
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Iterable
 
 import exiv2
-import yaml
-from bs4 import BeautifulSoup
-from PIL import Image
 import numpy as np
 import torch
+import yaml
+from PIL import Image
+from bs4 import BeautifulSoup
+
 from nind_denoise.rl_pt import richardson_lucy_gaussian
 
 logger = logging.getLogger(__name__)
+warnings.warn(
+    "nind_denoise.pipeline (legacy monolith) is deprecated; use nind_denoise.pipeline package instead",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 # Defaults
 DEFAULT_JPEG_QUALITY = 90
@@ -81,7 +90,9 @@ class Context:
     verbose: bool = False
 
 
-def run_cmd(args: Iterable[pathlib.Path | str], cwd: pathlib.Path | None = None) -> None:
+def run_cmd(
+    args: Iterable[pathlib.Path | str], cwd: pathlib.Path | None = None
+) -> None:
     cmd = [str(a) for a in args]
     logger.debug("Running: %s (cwd=%s)", " ".join(cmd), cwd)
     subprocess.run(cmd, cwd=None if cwd is None else str(cwd), check=True)
@@ -155,7 +166,9 @@ class RLDeblurPT(DeblurStage):
         img_tensor = torch.from_numpy(img_np)  # HxWxC, uint8
 
         # Run RL on torch
-        deblur = richardson_lucy_gaussian(img_tensor, sigma=sigma, iterations=iterations)
+        deblur = richardson_lucy_gaussian(
+            img_tensor, sigma=sigma, iterations=iterations
+        )
 
         # Convert back to PIL and save with quality
         if deblur.dtype == torch.uint8:
@@ -172,7 +185,12 @@ class RLDeblurPT(DeblurStage):
 
 # Utility and helpers moved from denoise.py
 
-def read_config(config_path: str = "./src/config/operations.yaml", _nightmode: bool = False, verbose: bool = False) -> dict:
+
+def read_config(
+    config_path: str = "./src/config/operations.yaml",
+    _nightmode: bool = False,
+    verbose: bool = False,
+) -> dict:
     with io.open(config_path, "r", encoding="utf-8") as instream:
         var = yaml.safe_load(instream)
     if _nightmode:
@@ -185,7 +203,9 @@ def read_config(config_path: str = "./src/config/operations.yaml", _nightmode: b
     return var
 
 
-def parse_darktable_history_stack(_input_xmp: pathlib.Path, config: dict, verbose: bool = False) -> None:
+def parse_darktable_history_stack(
+    _input_xmp: pathlib.Path, config: dict, verbose: bool = False
+) -> None:
     operations = config["operations"]
     with _input_xmp.open(encoding="utf-8") as f:
         sidecar_xml = f.read()
@@ -238,7 +258,9 @@ def parse_darktable_history_stack(_input_xmp: pathlib.Path, config: dict, verbos
     s2.write_text(sidecar.prettify(), encoding="utf-8")
 
 
-def clone_exif(src_file: pathlib.Path, dst_file: pathlib.Path, verbose: bool = False) -> None:
+def clone_exif(
+    src_file: pathlib.Path, dst_file: pathlib.Path, verbose: bool = False
+) -> None:
     try:
         src_image = exiv2.ImageFactory.open(str(src_file))
         src_image.readMetadata()
@@ -254,10 +276,16 @@ def clone_exif(src_file: pathlib.Path, dst_file: pathlib.Path, verbose: bool = F
 
 
 def get_output_extension(args) -> str:
-    return ("." + args["--extension"]) if args["--extension"][0] != "." else args["--extension"]
+    return (
+        ("." + args["--extension"])
+        if args["--extension"][0] != "."
+        else args["--extension"]
+    )
 
 
-def resolve_output_paths(input_path: pathlib.Path, output_path_opt: str | None, out_ext: str) -> tuple[pathlib.Path, pathlib.Path]:
+def resolve_output_paths(
+    input_path: pathlib.Path, output_path_opt: str | None, out_ext: str
+) -> tuple[pathlib.Path, pathlib.Path]:
     output_dir = pathlib.Path(output_path_opt) if output_path_opt else input_path.parent
     outpath = (output_dir / input_path.name).with_suffix(out_ext)
     return output_dir, outpath
@@ -285,14 +313,18 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
     logger.info("Processing %s", _input_path)
 
     output_extension = get_output_extension(_args)
-    output_dir, outpath = resolve_output_paths(_input_path, _args.get("--output-path"), output_extension)
+    output_dir, outpath = resolve_output_paths(
+        _input_path, _args.get("--output-path"), output_extension
+    )
 
     input_xmp = _input_path.with_suffix(_input_path.suffix + ".xmp")
     sigma = int(_args.get("--sigma") or DEFAULT_RL_SIGMA)
     quality = int(_args.get("--quality") or DEFAULT_JPEG_QUALITY)
     iterations = int(_args.get("--iterations") or DEFAULT_RL_ITERATIONS)
 
-    stage_one_output_filepath, stage_one_denoised_filepath = get_stage_filepaths(outpath, 1)
+    stage_one_output_filepath, stage_one_denoised_filepath = get_stage_filepaths(
+        outpath, 1
+    )
     stage_two_output_filepath = get_stage_filepaths(outpath, 2)
 
     config = read_config(verbose=verbose)
@@ -303,12 +335,17 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
 
     rldeblur = True
     if not cmd_gmic.exists() or _args.get("--no_deblur"):
-        logger.warning("gmic (%s) does not exist or --no_deblur is set, disabled RL-deblur", cmd_gmic)
+        logger.warning(
+            "gmic (%s) does not exist or --no_deblur is set, disabled RL-deblur",
+            cmd_gmic,
+        )
         rldeblur = False
         stage_two_output_filepath = outpath
 
     if not cmd_darktable.exists():
-        logger.error("darktable-cli (%s) does not exist or is not accessible.", cmd_darktable)
+        logger.error(
+            "darktable-cli (%s) does not exist or is not accessible.", cmd_darktable
+        )
         raise RuntimeError(f"darktable-cli not found at {cmd_darktable}")
 
     # input validation
@@ -323,24 +360,29 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
         outpath = outpath.with_stem(outpath.stem + "_" + str(i))
         i += 1
         if i >= 99:
-            logger.error("Too many files with the same name already exist in %s", outpath.parent)
+            logger.error(
+                "Too many files with the same name already exist in %s", outpath.parent
+            )
             raise FileExistsError(str(outpath.parent))
 
     parse_darktable_history_stack(input_xmp, config=config, verbose=verbose)
 
     # Stage 1 export (32-bit TIFF)
     stage_one_output_filepath.unlink(missing_ok=True)
-    run_cmd([
-        cmd_darktable,
-        _input_path,
-        input_xmp.with_suffix(".s1.xmp"),
-        stage_one_output_filepath.name,
-        "--apply-custom-presets",
-        "false",
-        "--core",
-        "--conf",
-        "plugins/imageio/format/tiff/bpp=32",
-    ], cwd=outpath.parent)
+    run_cmd(
+        [
+            cmd_darktable,
+            _input_path,
+            input_xmp.with_suffix(".s1.xmp"),
+            stage_one_output_filepath.name,
+            "--apply-custom-presets",
+            "false",
+            "--core",
+            "--conf",
+            "plugins/imageio/format/tiff/bpp=32",
+        ],
+        cwd=outpath.parent,
+    )
 
     if not stage_one_output_filepath.exists():
         logger.error("First-stage export not found: %s", stage_one_output_filepath)
@@ -353,6 +395,7 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
     if not model_path.exists():
         logger.info("Downloading denoiser model to %s", model_path)
         from torch import hub
+
         hub.download_url_to_file(
             "https://f005.backblazeb2.com/file/modelzoo/nind/generator_650.pt",
             str(model_path),
@@ -361,6 +404,7 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
 
     _dim = import_denoise_image()
     from types import SimpleNamespace as _NS
+
     _di_args = _NS(
         cs=None,
         ucs=None,
@@ -382,7 +426,10 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
     _dim.run_from_args(_di_args)
 
     if not stage_one_denoised_filepath.exists():
-        logger.error("Denoiser did not output a file where expected: %s", stage_one_denoised_filepath)
+        logger.error(
+            "Denoiser did not output a file where expected: %s",
+            stage_one_denoised_filepath,
+        )
         raise RuntimeError(str(stage_one_denoised_filepath))
 
     clone_exif(_input_path, stage_one_denoised_filepath)
@@ -398,21 +445,24 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
         raise FileNotFoundError(str(xmp2_src))
     shutil.copy2(xmp2_src, xmp2_dst)
 
-    run_cmd([
-        cmd_darktable,
-        stage_one_denoised_filepath,
-        xmp2_dst.name,
-        stage_two_output_filepath.name,
-        "--icc-intent",
-        "PERCEPTUAL",
-        "--icc-type",
-        "SRGB",
-        "--apply-custom-presets",
-        "false",
-        "--core",
-        "--conf",
-        "plugins/imageio/format/tiff/bpp=16",
-    ], cwd=outpath.parent)
+    run_cmd(
+        [
+            cmd_darktable,
+            stage_one_denoised_filepath,
+            xmp2_dst.name,
+            stage_two_output_filepath.name,
+            "--icc-intent",
+            "PERCEPTUAL",
+            "--icc-type",
+            "SRGB",
+            "--apply-custom-presets",
+            "false",
+            "--core",
+            "--conf",
+            "plugins/imageio/format/tiff/bpp=16",
+        ],
+        cwd=outpath.parent,
+    )
 
     # Deblur stage
     deblur_stage = RLDeblur() if rldeblur else NoOpDeblur()

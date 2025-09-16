@@ -185,10 +185,19 @@ def run_cmd(args: Iterable[Path | str], cwd: Optional[Path] = None) -> None:
     """Run a subprocess command with logging and optional cwd.
 
     Exposed here to give tests a single place to monkeypatch process execution.
+    Wraps CalledProcessError into SubprocessError with enriched context.
     """
     cmd = [str(a) for a in args]
     logger.debug("Running: %s (cwd=%s)", " ".join(cmd), cwd)
-    subprocess.run(cmd, cwd=None if cwd is None else str(cwd), check=True)
+    try:
+        subprocess.run(cmd, cwd=None if cwd is None else str(cwd), check=True)
+    except subprocess.CalledProcessError as exc:  # type: ignore[attr-defined]
+        from .exceptions import SubprocessError
+
+        msg = f"Command failed with exit code {exc.returncode}: {' '.join(cmd)}" + (
+            f" (cwd={cwd})" if cwd else ""
+        )
+        raise SubprocessError(msg) from exc
 
 
 def resolve_tools(

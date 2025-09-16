@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 import logging
 import pathlib
+
 import typer
 
 logger = logging.getLogger(__name__)
 
+
 def _process_inputs(raw_image: pathlib.Path, args: dict) -> None:
     """Dispatch processing over a single file or a directory tree."""
-    from nind_denoise.pipeline import run_pipeline 
+    from nind_denoise.pipeline import run_pipeline
     from nind_denoise.config import valid_extensions
 
     if raw_image.is_dir():

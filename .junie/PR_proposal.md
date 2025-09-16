@@ -1,7 +1,8 @@
 1. Publish the consolidated follow-up refactor plan for nind-denoise and request confirmation. (done)
 2. Triage current pylint findings and correctness risks in legacy helpers under src\nind_denoise\common\libs.
 
-- Re-run pylint focused on src\nind_denoise\common, src\nind_denoise\tools, src\nind_denoise\models, src\nind_denoise\networks, and
+- Re-run pylint focused on src\nind_denoise\common, src\nind_denoise\tools, src\nind_denoise\models,
+  src\nind_denoise\networks, and
   src\nind_denoise to generate an up-to-date, file-by-file issue list.
 - Classify issues by severity: correctness (undefined names, inconsistent returns), safety (broad except, dangerous
   defaults), and style (long lines, trailing whitespace).
