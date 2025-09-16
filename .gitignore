@@ -11,4 +11,11 @@
 pyvenv.cfg
 .venv
 pip-selfcheck.json
-
+.pytest_cache
+.idea
+.syspath.txt
+.xml
+uv.lock
+src/__pycache__
+__pycache__
+dist
