@@ -1,214 +1,104 @@
-# nind-denoise Development Guidelines
+Project development guidelines for nind-denoise
 
-## Build/Configuration Instructions
+This document captures project-specific build, configuration, testing, and development practices to help future
+contributors work efficiently. It intentionally focuses on details specific to this repository rather than generic
+Python advice.
 
-### Environment Setup
+1) Build and configuration
 
-- **Python Version**: Requires Python >=3.12
-- **Package Manager**: Uses `uv` for dependency management and virtual environment
-- **Project Structure**: Uses `src/` layout with packages in `src/nind_denoise/`
+- Python/runtime
+    - Requires Python >= 3.12 (pyproject.toml) and is actively developed/tested with modern Python (3.13 works as well).
+    - Preferred workflow uses uv for virtual environments and dependency installation (see README for platform-specific
+      commands).
 
-### Dependencies Installation
+- Dependencies and installation
+    - See the project's README.md
 
-```bash
-# Install dependencies using uv
-uv sync
+- Source layout
+    - This repo uses a src layout: Python code lives under src/. The package name is nind-denoise with module paths
+      under
+      src/nind_denoise/ and a top-level orchestration script at src/denoise.py.
 
-# Or using pip with requirements
-pip install -r requirements.in
-```
+2) Testing
 
-### Key Dependencies
+- Test runner
+    - We use pytest. Typical invocations:
+        - Run everything: pytest -q
+        - Run a single file: pytest -q tests\test_pipeline.py
+        - Run a test by node id: pytest -q tests\test_pipeline.py::test_noop_deblur_runs
+        - run the long-running tests: pytest -m integration tests\
 
-- **PyTorch Ecosystem**: torch~=2.8.0, torchvision~=0.23.0, torchaudio~=2.8.0
-- **Computer Vision**: OpenCV (opencv-python, opencv-contrib-python), Pillow, imageio
-- **Image Metadata**: exiv2 for EXIF/XMP handling
-- **External Tools**: Designed to work with darktable-cli and gmic (optional for integration tests)
+- Importing code from src in tests (without installing the package)
+    - Mandate editable installs
+    - Prefer a shared tests\conftest.py that prepends the repository’s src directory to sys.path so individual tests
+      don’t need per-file boilerplate.
 
-### Configuration System
+- What to do if a test fails
+    - If there are multiple failures, do root cause analysis before deciding what the problems are or how to fix them.
+    - A failing test should always be fully-investigated. It is OK to stop what you are doing, seek human guidance, and
+      to give it your full attention.
+    - Existing code should **always** be fixed/improved to bring the code into compliance
+    - **Never** should existing code be circumvented, shimmed, covered with a "fallback", or modified "not to use an
+      eternal tool",
+      or anything other action taken to "avoid" rather than "fix" a problem causing a test failure.
 
-The project uses YAML-based configuration (`src/nind_denoise/config/config.yaml`):
+- Adding new tests
+    - Tests should be small, targeted to one 'thing' only, fully documented, and coverage should be extended to every
+      additional piece of code as it is written.
+    - Prefer placing tests under tests/ with descriptive names (e.g., test_pipeline_highlevel.py).
+    - If practicable, Use in-memory temporary files and directories for transient filesystem operations.
+        - Clean up any on-disk artifacts your test creates when it is not.
 
-- **Models**: Neural network model paths and defaults
-- **Tools**: Platform-specific paths for external tools (Windows/POSIX)
-- **Operations**: Pipeline stage definitions (first_stage, second_stage, nightmode_ops)
-- **File Extensions**: Supported RAW image formats (3FR, ARW, CR2, DNG, NEF, ORF, etc.)
+3) Additional development information
 
-### External Tools (Optional)
+- Coding style and quality:
+    - Use pylint as a guide for improving code, not as a guide to figure out which messages to disable in pylint.
+        - Do not switch off pylint messaging in order to improve the score it gives
+        - Prefer clean, concise, and readable code.
+    - Prefer solutions that decrease cognitive complexity and improve readability over guards and robustness.
+    - The addition of a test asserting a module is importable coupled with simple `import module` clauses are always
+      preferred to import guarding.
+    - Avoid using modules that are not available on all target platforms
+    - Linting: CI runs pylint across all tracked *.py files. Locally, after uv tool install pylint, you can run: uv tool
+      run pylint $(git ls-files '*.py') on Linux/macOS, or for PowerShell: git ls-files "*.py" | ForEach-Object { $_ } |
+      ForEach-Object { uv tool run pylint $_ }
+    - Formatting: black is listed in the dev group. If you use uv: uv sync --group dev, then run: uv run black src test
 
-Integration tests require external image processing tools:
+- CLI and orchestration
+    - The primary user entry point is src/denoise.py, which exposes a Typer CLI (see cli() at the bottom). It
+      orchestrates:
+        1) Export via darktable-cli with a stage-one XMP.
+        2) Denoising stage, preparing an intermediate TIFF.
+        3) Optional RL deblur via gmic, implemented as a DeblurStage in src/nind_denoise/pipeline.py.
+        4) EXIF cloning via exiv2.
 
-- **darktable-cli**: RAW image processing
-- **gmic**: Advanced image filtering
-- These are platform-specific and configured in config.yaml
+- External tools on Windows
+    - PowerShell is the default shell in this workspace. When running examples from the README, prefer backslashes
+      and/or doubled backslashes; some Windows shells do not like single forward slashes for paths.
+    - Ensure darktable-cli.exe and gmic.exe have their locations recorded in a configuration file, or passed explicitly
+      via --dt and --gmic.
 
-## Testing Information
+- Subprocess safety
+    - When adding new pipeline stages, prefer the run_cmd helper in pipeline.py to standardize logging and Path-to-str
+      conversion.
+    - Use cwd where appropriate and keep all outputs within a designated output_dir. The current pipeline passes
+      filenames and a working directory to avoid path confusion.
 
-### Test Configuration
+- Long/slow tests and integration checks
+    - Anything invoking external tools (darktable-cli, gmic) or large models will be slow and environment-dependent.
+        - Keep these under an integration marker or skip them by default; use -m integration to opt-in, or -k to
+          exclude.
+        - Example markers can be added in pytest.ini when this is formalized.
 
-- **Framework**: pytest with pytest-cov for coverage
-- **Configuration**: `pytest.ini` defines custom markers
-- **Integration Tests**: Marked with `@pytest.mark.integration` for tests requiring external tools
-- **Default Behavior**: Excludes integration tests by default (`addopts = -m "not integration"`)
+- Configuration files
+    - Operation and model configurations (YAML) live under src/config/ and src/nind_denoise/configs/.
 
-### Running Tests
+- Cross-platform notes
+    - The repository is used on Windows, MacOS, and Linux.
+        - Keep path handling via pathlib whenever possible and do not hardcode separators.
+        - Subprocess args are passed as lists of strings to avoid shell quoting issues.
 
-#### Basic Test Execution
+- Contributing checklist
+    - Validate that black formatting, pylint, and basic pytest smoke tests pass locally before opening a PR.
 
-```bash
-# Run all unit tests (excludes integration tests)
-python -m pytest
-
-# Run with verbose output
-python -m pytest -v
-
-# Run specific test file
-python -m pytest tests/test_utilities.py -v
-
-# Run integration tests (requires external tools)
-python -m pytest -m integration
-```
-
-#### Test Coverage
-
-```bash
-# Run tests with coverage report
-python -m pytest --cov=src/nind_denoise --cov-report=html
-```
-
-### Adding New Tests
-
-#### Example Test Structure
-
-```python
-"""
-Simple test example following project patterns.
-"""
-import pytest
-from pathlib import Path
-
-
-def test_path_operations():
-    """Test path operations common in image processing."""
-    # Test basic path handling
-    test_path = Path("image.ORF")
-    assert test_path.suffix == ".ORF"
-
-    # Test XMP sidecar files (common pattern)
-    xmp_path = test_path.with_suffix(test_path.suffix + ".xmp")
-    assert str(xmp_path) == "image.ORF.xmp"
-
-
-@pytest.mark.integration
-def test_external_tool():
-    """Example integration test requiring external tools."""
-    # This test would be skipped by default
-    pass
-```
-
-#### Test Organization
-
-- **Unit Tests**: Focus on individual components without external dependencies
-- **Integration Tests**: Test external tool integration (darktable, gmic)
-- **Test Data**: Located in `tests/test_raw/` with sample images and XMP files
-- **Fixtures**: Defined in `tests/conftest.py`
-
-### Verified Test Example
-
-The following test demonstrates the working testing setup:
-
-```bash
-python -m pytest test_example.py -v
-# Expected output: 2 tests pass in ~0.04s
-```
-
-## Development Information
-
-### Code Style and Formatting
-
-- **Formatter**: Black (>=25.1.0) for consistent code formatting
-- **Style**: Follows Black's opinionated formatting rules
-- **IDE Integration**: PyCharm/IntelliJ configuration available in `.idea/misc.xml`
-
-### Architectural Patterns
-
-#### Pipeline Architecture
-
-- **Abstract Base Classes**: Operations inherit from `Operation` ABC
-- **Stage Pattern**: Pipeline divided into stages (denoise, deblur, export)
-- **Context Objects**: `JobContext` dataclass carries state between stages
-- **Environment Pattern**: `Config` + `JobContext` pattern for operation execution
-
-#### Key Classes
-
-```python
-# Base operation pattern
-class Operation(ABC):
-    @abstractmethod
-    def execute_with_env(self, cfg: Config, job_ctx: JobContext) -> None: ...
-
-    @abstractmethod
-    def verify_with_env(self, cfg: Config, job_ctx: JobContext) -> None: ...
-
-
-# Typed context for stage execution
-@dataclass
-class JobContext:
-    input_path: Path
-    output_path: Path
-    sigma: int = 1
-    iterations: int = 10
-    quality: int = 90
-```
-
-#### Machine Learning Patterns
-
-- **Dataset Classes**: Multiple torch.utils.data.Dataset implementations
-- **Data Augmentation**: Built-in noise injection, compression, cropping
-- **Configuration-Driven**: YAML-based training configuration
-- **Validation Split**: Dedicated ValidationDataset class
-- **Testing Integration**: unittest.TestCase mixed with pytest
-
-#### File Handling Patterns
-
-- **Path Objects**: Extensive use of `pathlib.Path` throughout
-- **XMP Sidecars**: RAW images paired with `.xmp` metadata files
-- **Multi-Extension**: Support for complex extensions like `.ORF.xmp`
-- **Stage Files**: Intermediate processing stages with suffix patterns (`_s1`, `_s2`)
-
-### Error Handling
-
-- **Custom Exceptions**: `ConfigurationError`, `ExternalToolNotFound`, `StageError`
-- **Defensive Programming**: Try/catch blocks with fallbacks
-- **Validation**: File existence checks before processing
-- **Pragma Coverage**: `# pragma: no cover` for defensive code paths
-
-### Import Patterns
-
-- **Future Annotations**: `from __future__ import annotations` for forward references
-- **Deferred Imports**: Imports within functions to avoid circular dependencies
-- **Type Hints**: Comprehensive typing throughout codebase
-
-### Development Best Practices
-
-1. **Type Safety**: Use dataclasses and type hints extensively
-2. **Configuration**: Keep settings in YAML, validate at startup
-3. **Testing**: Separate unit tests from integration tests requiring external tools
-4. **Path Handling**: Use `pathlib.Path` objects, not string paths
-5. **Logging**: Use module-level loggers with `logging.getLogger(__name__)`
-6. **External Tools**: Graceful degradation when optional tools unavailable
-
-### Project-Specific Notes
-
-- **RAW Processing**: Designed for camera RAW image denoising workflow
-- **Neural Networks**: PyTorch-based denoising models with downloadable weights
-- **Pipeline Stages**: Two-stage processing with configurable operations
-- **Platform Support**: Windows and POSIX tool configurations
-- **Image Formats**: Extensive RAW format support (Canon, Sony, Nikon, Olympus, etc.)
-
-### Debugging Tips
-
-- **Configuration Issues**: Check `config.yaml` tool paths and model availability
-- **Integration Test Failures**: Verify external tools (darktable-cli, gmic) are installed
-- **Path Problems**: Use `pathlib.Path` objects and check `.exists()` before processing
-- **Import Errors**: Check for circular dependencies, use deferred imports if needed
+End of file.

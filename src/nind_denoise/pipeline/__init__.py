@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Dict, Type
 
 # Stage types and defaults
-from .base import DenoiseOperation, ExportOperation
-from .deblur import Deblur, RLDeblur, RLDeblurPT
+from .base import Context, DeblurOperation, DenoiseOperation, ExportOperation
+from .deblur import RLDeblur
 from .denoise import DenoiseOptions, DenoiseStage
 from .export import ExportStage
 from .orchestrator import (
@@ -16,11 +16,14 @@ from .orchestrator import (
     run_pipeline,
     validate_input_file,
 )
+# Public utilities
+from ..config import run_cmd, subprocess, valid_extensions
+from ..exif import clone_exif
 
 # Simple registries (extensible)
 _EXPORTERS: Dict[str, Type[ExportOperation]] = {"darktable": ExportStage}
 _DENOISERS: Dict[str, Type[DenoiseOperation]] = {"nind_pt": DenoiseStage}
-_DEBLUR: Dict[str, Type[Deblur]] = {"gmic": RLDeblur, "pt_rl": RLDeblurPT}
+_DEBLUR: Dict[str, Type[DeblurOperation]] = {"gmic": RLDeblur}
 
 
 def register_exporter(name: str, cls: Type[ExportOperation]) -> None:
@@ -39,22 +42,25 @@ def get_denoiser(name: str = "nind_pt") -> Type[DenoiseOperation]:
     return _DENOISERS[name]
 
 
-def register_deblur(name: str, cls: Type[Deblur]) -> None:
+def register_deblur(name: str, cls: Type[DeblurOperation]) -> None:
     _DEBLUR[name] = cls
 
 
-def get_deblur(name: str = "gmic") -> Type[Deblur]:
+def get_deblur(name: str = "gmic") -> Type[DeblurOperation]:
     return _DEBLUR[name]
 
 
 __all__ = [
+    "Context",
     "run_pipeline",
     "get_stage_filepaths",
     "get_output_extension",
     "resolve_output_paths",
+    "run_cmd",
+    "clone_exif",
+    "subprocess",
     "ExportStage",
     "RLDeblur",
-    "RLDeblurPT",
     "DenoiseStage",
     "DenoiseOptions",
     "register_exporter",
@@ -63,4 +69,5 @@ __all__ = [
     "get_denoiser",
     "register_deblur",
     "get_deblur",
+    "valid_extensions",
 ]

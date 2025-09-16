@@ -19,4 +19,4 @@ uv.lock
 src/__pycache__
 __pycache__
 dist
-models/brummer2019/generator_650.pt
+models/nind/generator_650.pt

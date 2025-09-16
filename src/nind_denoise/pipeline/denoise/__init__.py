@@ -1,9 +1,23 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
-from .brummer2019 import DenoiseOperation, DenoiseOptions, DenoiseStage
-from ..base import StageError
+from ..base import Context, DenoiseOperation, StageError
+
+
+@dataclass
+class DenoiseOptions:
+    """Options for the denoiser stage.
+
+    Fields are kept simple for now; real implementations can use device/tile configs.
+    """
+
+    model_path: Path
+    device: Optional[str] = None  # e.g., "cpu", "cuda", "mps"
+    overlap: int = 6
+    batch_size: int = 1
 
 
 class _NINDPTDenoiser:
