@@ -4,7 +4,7 @@ This package exposes a stable CLI and re-exports a few convenience symbols for
 advanced users and tests. The stable user-facing API remains the CLI.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.1"
 
 from .config import valid_extensions  # noqa: F401
 
