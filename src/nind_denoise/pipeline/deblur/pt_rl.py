@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from ..base import Context, DeblurOperation, StageError
+from ..base import Context, DeblurOperation, Environment, JobContext, StageError
 
 logger = logging.getLogger(__name__)
 
@@ -91,4 +91,66 @@ class RLDeblurPT(DeblurOperation):
         if not ctx.outpath.exists():
             raise StageError(
                 f"PyTorch RL deblur stage expected output missing: {ctx.outpath}"
+            )
+
+    def execute_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Execute PyTorch RL deblur with type-safe Environment + JobContext."""
+        input_path = job_ctx.intermediate_path or job_ctx.input_path
+        output_path = job_ctx.output_path
+        sigma = float(job_ctx.sigma)
+        iterations = job_ctx.iterations
+        quality = job_ctx.quality
+
+        if not input_path.exists():
+            raise StageError(f"Stage input not found: {input_path}")
+
+        try:
+            # Load input as RGB, obtain HxWxC uint8 array
+            with Image.open(input_path) as im:
+                im = im.convert("RGB")
+                img_np = np.array(im, dtype=np.uint8)
+            img_tensor = torch.from_numpy(img_np)  # HxWxC, uint8
+
+            # Import locally to avoid import-time side effects
+            from nind_denoise.rl_pt import richardson_lucy_gaussian
+
+            # Run RL on torch
+            deblur = richardson_lucy_gaussian(
+                img_tensor, sigma=sigma, iterations=iterations
+            )
+
+            # Convert back to PIL and save with quality
+            if deblur.dtype == torch.uint8:
+                out_np = deblur.cpu().numpy()
+            else:
+                out_np = (
+                    (deblur.clamp(0, 1) * 255.0).round().to(torch.uint8).cpu().numpy()
+                )
+            out_img = Image.fromarray(out_np, mode="RGB")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            out_img.save(output_path, quality=quality)
+
+            if env.verbose:
+                logger.info("Applied RL-deblur (PyTorch) to: %s", output_path)
+
+        except Exception as exc:
+            # Be resilient to PyTorch issues in integration envs
+            logger.warning(
+                "PyTorch RL-deblur failed to execute (%s); keeping exported image as-is",
+                exc,
+            )
+            # Copy the input to final output as fallback
+            if input_path != output_path:
+                import shutil
+
+                shutil.copy2(input_path, output_path)
+            return
+
+        self.verify_with_env(env, job_ctx)
+
+    def verify_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Verify PyTorch RL deblur outputs with type-safe Environment + JobContext."""
+        if not job_ctx.output_path.exists():
+            raise StageError(
+                f"PyTorch RL deblur stage expected output missing: {job_ctx.output_path}"
             )

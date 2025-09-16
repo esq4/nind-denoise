@@ -6,7 +6,7 @@ import logging
 import pathlib
 from typing import Optional
 
-from .base import Context
+from .base import Context, Environment
 from .deblur import RLDeblur
 from .denoise import DenoiseOptions, DenoiseStage
 from .export import ExportStage
@@ -127,7 +127,27 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
 
     outpath = resolve_unique_output_path(outpath)
 
-    # Stage 1 export (32-bit TIFF)
+    # Create immutable Environment for new context pattern
+    environment = Environment(
+        tools=tools,
+        config=config,
+        verbose=verbose,
+        device=None,  # Future: device selection for denoiser
+    )
+
+    # FUTURE: Demonstration of new type-safe context usage
+    # Example JobContext for stage 1 export:
+    # s1_job_ctx = JobContext(
+    #     input_path=_input_path,
+    #     output_path=stage_one_output_filepath,
+    #     output_dir=output_dir,
+    #     sigma=sigma,
+    #     iterations=iterations,
+    #     quality=quality,
+    # )
+    # Then call: export_stage.execute_with_env(environment, s1_job_ctx)
+
+    # Stage 1 export (32-bit TIFF) - using legacy Context for backward compatibility
     input_xmp = _input_path.with_suffix(_input_path.suffix + ".xmp")
     s1_xmp = stage_one_output_filepath.with_suffix(".s1.xmp")
     ExportStage(

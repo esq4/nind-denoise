@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .base import Context, ExportOperation, StageError
+from .base import Context, Environment, ExportOperation, JobContext, StageError
 
 
 class ExportStage(ExportOperation):
@@ -73,3 +73,59 @@ class ExportStage(ExportOperation):
             raise StageError(
                 f"Stage {self.stage_number} export missing: {self.out_tif}"
             )
+
+    def execute_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Execute export stage with type-safe Environment + JobContext."""
+        # Use tools from Environment instead of constructor
+        tools = env.tools
+
+        # Derive stage-specific paths from JobContext
+        input_tif = job_ctx.input_path
+        src_xmp = input_tif.with_suffix(input_tif.suffix + ".xmp")
+        stage_xmp = job_ctx.output_path.with_suffix(f".s{self.stage_number}.xmp")
+        out_tif = job_ctx.output_path
+
+        # Build the stage-X XMP adjacent to the input TIFF before export
+        if not src_xmp.exists():
+            raise StageError(f"Missing input XMP: {src_xmp}")
+
+        # Prepare output file path (create dir, remove any pre-existing file)
+        self._prepare_output_file(out_tif)
+
+        # Ensure stage-X XMP is written where the export runs (cwd)
+        self.write_xmp_file(
+            src_xmp, stage_xmp, stage=self.stage_number, verbose=env.verbose
+        )
+
+        cmd_args = [
+            tools.darktable,
+            input_tif,
+            stage_xmp.name,
+            out_tif.name,
+            "--apply-custom-presets",
+            "false",
+            "--core",
+            "--conf",
+            f"plugins/imageio/format/tiff/bpp={32 if self.stage_number == 1 else 16}",
+        ]
+
+        # Add stage-specific arguments
+        if self.stage_number == 2:
+            cmd_args.extend(["--icc-intent", "PERCEPTUAL", "--icc-type", "SRGB"])
+
+        self._run_cmd(cmd_args, cwd=out_tif.parent)
+        self.verify_with_env(env, job_ctx)
+
+    def verify_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Verify export stage outputs with type-safe Environment + JobContext."""
+        out_tif = job_ctx.output_path
+
+        if not out_tif.exists():
+            # Darktable may shorten '.tiff' to '.tif' on some platforms; normalize to requested
+            if out_tif.suffix.lower() == ".tiff":
+                alt_path = out_tif.with_suffix(".tif")
+                if alt_path.exists():
+                    alt_path.replace(out_tif)
+
+        if not out_tif.exists():
+            raise StageError(f"Stage {self.stage_number} export missing: {out_tif}")

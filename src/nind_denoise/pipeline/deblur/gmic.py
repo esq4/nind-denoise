@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from ..base import Context, DeblurOperation, StageError
+from ..base import Context, DeblurOperation, Environment, JobContext, StageError
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,55 @@ class RLDeblur(DeblurOperation):
         if not ctx.outpath.exists():
             raise StageError(f"Deblur stage expected output missing: {ctx.outpath}")
 
+    def execute_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Execute RL deblur with type-safe Environment + JobContext."""
+        if not env.tools.gmic:
+            raise StageError("GMIC tool not available in Environment")
+
+        input_path = job_ctx.intermediate_path or job_ctx.input_path
+        output_path = job_ctx.output_path
+        output_dir = job_ctx.output_dir
+
+        # Use a temporary target name to avoid issues with spaces; rename at the end
+        tmp_out = output_path.with_name(output_path.stem + "__tmp.jpg")
+        args = [
+            str(env.tools.gmic),
+            str(input_path.name),
+            "-fx_sharpen_reinhard",
+            str(job_ctx.sigma),
+            str(job_ctx.iterations),
+            "-o_jpg",
+            f"{tmp_out.name},{job_ctx.quality}",
+        ]
+
+        try:
+            self._run_cmd(args, cwd=output_dir)
+        except Exception as exc:
+            logger.warning(
+                "RL-deblur failed to execute (%s); keeping exported image as-is", exc
+            )
+            return
+
+        # Rename back to requested output_path (if gmic produced it)
+        tmp_path = output_dir / tmp_out.name
+        if tmp_path.exists():
+            tmp_path.replace(output_path)
+        else:
+            logger.warning(
+                "RL-deblur did not create expected output %s; keeping exported image as-is",
+                tmp_path,
+            )
+            return
+
+        self.verify_with_env(env, job_ctx)
+
+    def verify_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Verify RL deblur outputs with type-safe Environment + JobContext."""
+        if not job_ctx.output_path.exists():
+            raise StageError(
+                f"Deblur stage expected output missing: {job_ctx.output_path}"
+            )
+
 
 class NoOpDeblur(DeblurOperation):
     """A no-op deblur stage for disabling deblurring while preserving pipeline shape."""
@@ -82,4 +131,15 @@ class NoOpDeblur(DeblurOperation):
         # No verification strictness here; caller may still perform final checks
 
     def verify(self, ctx: Context | None = None) -> None:  # pragma: no cover - trivial
+        return
+
+    def execute_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Execute no-op deblur with type-safe Environment + JobContext."""
+        # Intentionally do nothing; assume previous output is the final image
+        if env.verbose:
+            logger.info("Deblur disabled; skipping.")
+
+    def verify_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Verify no-op deblur with type-safe Environment + JobContext."""
+        # No verification needed for no-op operation
         return

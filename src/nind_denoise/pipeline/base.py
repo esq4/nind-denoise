@@ -6,15 +6,57 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 from ..config import Tools  # type: ignore[reportMissingImports]
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class Environment:
+    """Immutable environment containing tools, config, and other shared state.
+
+    This represents the execution environment that remains constant across
+    all pipeline stages for a given run.
+    """
+
+    tools: Tools
+    config: Dict[str, Any]
+    verbose: bool = False
+    # Future device selection for denoiser (CPU/CUDA/MPS)
+    device: Optional[str] = None
+
+
+@dataclass
+class JobContext:
+    """Per-stage job context with typed, required fields for stage execution.
+
+    This contains the mutable state specific to each pipeline stage execution,
+    with non-optional fields to ensure type safety.
+    """
+
+    # Input/output paths (required)
+    input_path: Path
+    output_path: Path
+    output_dir: Path
+
+    # Stage-specific processing parameters
+    sigma: int = 1
+    iterations: int = 10
+    quality: int = 90
+
+    # Optional stage-specific paths
+    intermediate_path: Optional[Path] = None
+
+
 @dataclass
 class Context:
+    """Legacy context class for backward compatibility.
+
+    DEPRECATED: Use Environment + JobContext instead for new code.
+    This will be removed in a future version.
+    """
     inpath: Optional[Path] = None
     outpath: Optional[Path] = None
     output_dir: Optional[Path] = None
@@ -39,6 +81,10 @@ class Operation(ABC):
 
     @abstractmethod
     def execute(self, ctx: Context) -> None:  # pragma: no cover
+        """Execute operation with legacy Context (deprecated).
+
+        DEPRECATED: Override execute_with_env instead for new implementations.
+        """
         ...
 
     @abstractmethod
@@ -47,6 +93,46 @@ class Operation(ABC):
         Implementations should raise StageError on failure.
         """
         ...
+
+    def execute_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Execute operation with new Environment + JobContext pattern.
+
+        Default implementation converts to legacy Context for backward compatibility.
+        Override this method in new implementations for type-safe execution.
+        """
+        # Convert new context types to legacy Context for backward compatibility
+        legacy_ctx = Context(
+            inpath=job_ctx.input_path,
+            outpath=job_ctx.output_path,
+            output_dir=job_ctx.output_dir,
+            output_filepath=job_ctx.intermediate_path or job_ctx.output_path,
+            sigma=job_ctx.sigma,
+            iteration=str(job_ctx.iterations),
+            quality=str(job_ctx.quality),
+            cmd_gmic=str(env.tools.gmic) if env.tools.gmic else None,
+            verbose=env.verbose,
+        )
+        self.execute(legacy_ctx)
+
+    def verify_with_env(self, env: Environment, job_ctx: JobContext) -> None:
+        """Verify operation outputs with new Environment + JobContext pattern.
+
+        Default implementation converts to legacy Context for backward compatibility.
+        Override this method in new implementations for type-safe verification.
+        """
+        # Convert new context types to legacy Context for backward compatibility
+        legacy_ctx = Context(
+            inpath=job_ctx.input_path,
+            outpath=job_ctx.output_path,
+            output_dir=job_ctx.output_dir,
+            output_filepath=job_ctx.intermediate_path or job_ctx.output_path,
+            sigma=job_ctx.sigma,
+            iteration=str(job_ctx.iterations),
+            quality=str(job_ctx.quality),
+            cmd_gmic=str(env.tools.gmic) if env.tools.gmic else None,
+            verbose=env.verbose,
+        )
+        self.verify(legacy_ctx)
 
     # Shared helpers usable by all operations
     def _run_cmd(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
