@@ -57,9 +57,50 @@ def test_export_stage_stage1_builds_cmd(monkeypatch, tmp_path):
 
     stg = ExportStage(tools, input_img, src_xmp, stage_xmp, out_tif, 1)
 
+<<<<<<< HEAD
+    # Create fake tool files for validation
+    fake_gmic = tmp_path / "fake_gmic.exe"
+    fake_dt = tmp_path / "fake_dt.exe"
+    fake_gmic.write_bytes(b"")
+    fake_dt.write_bytes(b"")
+
+    # Create Config and JobContext for new pattern
+    config_file = tmp_path / "test_config.yaml"
+    config_file.write_text(
+        f"""
+models:
+  test_model:
+    path: /fake/model/path
+    default: true
+tools:
+  windows:
+    gmic:
+      path: {fake_gmic}
+      args: []
+    darktable:
+      path: {fake_dt}
+      args: []
+  posix:
+    gmic:
+      path: {fake_gmic}
+      args: []
+    darktable:
+      path: {fake_dt}
+      args: []
+operations:
+  operations:
+    first_stage: ["demosaic", "flip"]
+    second_stage: ["colorout", "sharpen"]
+nightmode_ops: ["sharpen"]
+"""
+    )
+    cfg = Config(path=config_file, verbose=True)
+    job_ctx = JobContext(input_path=input_img, output_path=out_tif)
+=======
     # Create Environment and JobContext for new pattern
     cfg = Config(tools=tools, config={}, verbose=True)
     job_ctx = JobContext(input_path=input_img, output_path=out_tif, output_dir=tmp_path)
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
     stg.execute_with_env(cfg, job_ctx)
 
     # Assert command args
@@ -104,9 +145,50 @@ def test_export_stage_stage2_builds_cmd(monkeypatch, tmp_path):
 
     stg = ExportStage(tools, input_img, src_xmp, stage_xmp, out_tif, 2)
 
+<<<<<<< HEAD
+    # Create fake tool files for validation
+    fake_gmic = tmp_path / "fake_gmic.exe"
+    fake_dt = tmp_path / "fake_dt.exe"
+    fake_gmic.write_bytes(b"")
+    fake_dt.write_bytes(b"")
+
+    # Create Config and JobContext for new pattern
+    config_file = tmp_path / "test_config.yaml"
+    config_file.write_text(
+        f"""
+models:
+  test_model:
+    path: /fake/model/path
+    default: true
+tools:
+  windows:
+    gmic:
+      path: {fake_gmic}
+      args: []
+    darktable:
+      path: {fake_dt}
+      args: []
+  posix:
+    gmic:
+      path: {fake_gmic}
+      args: []
+    darktable:
+      path: {fake_dt}
+      args: []
+operations:
+  operations:
+    first_stage: ["demosaic", "flip"]
+    second_stage: ["colorout", "sharpen"]
+nightmode_ops: ["sharpen"]
+"""
+    )
+    cfg = Config(path=config_file, verbose=False)
+    job_ctx = JobContext(input_path=input_img, output_path=out_tif)
+=======
     # Create Environment and JobContext for new pattern
     cfg = Config(tools=tools, config={}, verbose=False)
     job_ctx = JobContext(input_path=input_img, output_path=out_tif, output_dir=tmp_path)
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
     stg.execute_with_env(cfg, job_ctx)
 
     args = captured["args"]

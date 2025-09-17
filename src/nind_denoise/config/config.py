@@ -197,15 +197,29 @@ class Config:
         self.verbose = verbose
         self.nightmode = nightmode
         config_path = Path(__file__).parent / "config.yaml" if path == "" else path
+<<<<<<< HEAD
+        model = model.name if type(model) == "Path" else model
         with open(config_path, "r") as f:
             self._config = yaml.safe_load(f)
         if model != "":
+            self._model_name = model
+        else:
+=======
+        with open(config_path, "r") as f:
+            self._config = yaml.safe_load(f)
+        if model != "":
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
             for k, v in self._config["models"].items():
                 if v.get("default", False):
                     self._model_name = k
                     break
+<<<<<<< HEAD
+                else:
+                    pass
+=======
         else:
             self._model_name = model
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
         self._tools = Tools(self._config["tools"])
         self._operations = None
 
@@ -234,10 +248,21 @@ class Config:
             Path: Path object pointing to the currently selected model file
                 or directory, as specified in the model's configuration.
 
+<<<<<<< HEAD
+        Raises:
+            ConfigurationError: If no valid model is selected or model not found.
+
+=======
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
         Note:
             This property uses the currently selected model name (stored in
             _model_name) to look up the path from the models configuration.
         """
+<<<<<<< HEAD
+        if not self._model_name or self._model_name not in self.models:
+            raise ConfigurationError(f"No valid model selected: '{self._model_name}'")
+=======
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
         return Path(self.models[self._model_name]["path"])
 
     @property
@@ -288,9 +313,13 @@ class Config:
             # Move nightmode ops  to first stage
             for op in nightmode_ops:
                 if op not in second_stage:
+<<<<<<< HEAD
+                    logger.warning("%s not found in second stage ops. Ignoring...", op)
+=======
                     logger.warning(
                         str(op), " not found in second stage ops. Ignoring..."
                     )
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
                 if op not in first_stage:
                     first_stage.append(op)
 

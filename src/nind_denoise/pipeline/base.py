@@ -80,8 +80,9 @@ class Operation(ABC):
 
 
 class ExportOperation(Operation, ABC):
-    def __init__(self, tools: Tools):
-        self.tools = tools
+
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
 
     def write_xmp_file(
         self, src_xmp: Path, dst_xmp: Path, stage: int, *, verbose: bool = False

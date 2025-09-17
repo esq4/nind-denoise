@@ -183,8 +183,13 @@ local NDRL = {
 
     -- Denoise checkbox widget
     denoise_chkbox = dt.new_widget("check_button") {
+<<<<<<< HEAD
+        label = _("apply NIND-denoise (Brummer 2019)"),
+        tooltip = _("apply NIND-denoise (Brummer 2019)"),
+=======
         label = _("apply brummer2019-denoise"),
         tooltip = _("apply brummer2019-denoise"),
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
         clicked_callback = function(self)
             toggle_processing_options()
         end
@@ -397,7 +402,11 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     -- denoise
     if extra.denoise_enabled then
         if extra.nind_denoise == "" then
+<<<<<<< HEAD
+            dt.print(_("ERROR: nind-denoise command not configured"))
+=======
             dt.print(_("ERROR: brummer2019-denoise command not configured"))
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
             return
         end
 

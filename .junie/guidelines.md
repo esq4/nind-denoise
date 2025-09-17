@@ -122,6 +122,38 @@ python -m pytest test_example.py -v
 # Expected output: 2 tests pass in ~0.04s
 ```
 
+<<<<<<< HEAD
+### Handling Test Failures After Refactors
+
+When major refactors break existing tests, the approach should focus on fixing underlying code issues rather than
+implementing backwards compatibility:
+
+#### Core Principles
+
+1. **Align with Architectural Intent**: Fix tests to match the new architecture, don't preserve old APIs
+2. **No Backwards Compatibility Layers**: Avoid stubs, facades, or compatibility interfaces that only address test
+   failures
+3. **Fix Root Causes**: Address underlying problems in the code, not symptoms in tests
+4. **Update Test Expectations**: Modify tests to work with the new implementation patterns
+
+#### Preferred Solutions for Common Refactor Issues
+
+- **API Changes**: Update test code to use new constructor signatures and method calls
+- **Module Reorganization**: Update imports to reference new module locations directly
+- **Method Signature Changes**: Rename methods throughout codebase consistently
+- **Missing Functions**: Transition tests to use new class-based APIs instead of standalone functions
+
+#### Implementation Priority
+
+1. **High Priority**: Config/API changes affecting many tests
+2. **Medium Priority**: Implementation bugs and missing function transitions
+3. **Low Priority**: Import errors and minor method signature issues
+
+This approach ensures the codebase evolves cleanly without accumulating technical debt from backwards compatibility
+layers.
+
+=======
+>>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
 ## Development Information
 
 ### Code Style and Formatting
