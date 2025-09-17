@@ -1,4 +1,4 @@
-from nind_denoise.common.libs import utilities
+from nind_denoise.libs.common import utilities
 
 
 def test_avg_listofdicts_empty():

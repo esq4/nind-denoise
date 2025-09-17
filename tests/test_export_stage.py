@@ -1,6 +1,5 @@
-from pathlib import Path
-
 import types
+from pathlib import Path
 
 SAMPLE_XMP = """
 <x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:darktable="http://darktable.sf.net/">
@@ -27,7 +26,8 @@ def _tools_stub(tmp_path: Path):
 
 def test_export_stage_stage1_builds_cmd(monkeypatch, tmp_path):
     from nind_denoise.pipeline.export import ExportStage
-    from nind_denoise.pipeline.base import Context
+    from nind_denoise.pipeline.base import JobContext
+    from nind_denoise.config.config import Config
 
     # Arrange inputs
     input_img = tmp_path / "IMG_0001.ARW"
@@ -48,14 +48,23 @@ def test_export_stage_stage1_builds_cmd(monkeypatch, tmp_path):
 
     # Avoid verify failing since we don't produce real outputs
     monkeypatch.setattr(ExportStage, "_run_cmd", fake_run_cmd, raising=True)
-    monkeypatch.setattr(ExportStage, "verify", lambda self, ctx=None: None, raising=True)
+    monkeypatch.setattr(
+        ExportStage,
+        "verify_with_env",
+        lambda self, cfg, job_ctx: None,
+        raising=True,
+    )
 
     stg = ExportStage(tools, input_img, src_xmp, stage_xmp, out_tif, 1)
-    stg.execute(Context(verbose=True))
+
+    # Create Environment and JobContext for new pattern
+    cfg = Config(tools=tools, config={}, verbose=True)
+    job_ctx = JobContext(input_path=input_img, output_path=out_tif, output_dir=tmp_path)
+    stg.execute_with_env(cfg, job_ctx)
 
     # Assert command args
     args = captured["args"]
-    assert args[0].endswith("darktable-cli")  # uses tools.darktable
+    assert args[0].endswith("darktable-cli")
     assert args[1].endswith("IMG_0001.ARW")
     assert args[2].endswith("stage1.s1.xmp")
     assert args[3].endswith("stage1.tif")
@@ -66,7 +75,8 @@ def test_export_stage_stage1_builds_cmd(monkeypatch, tmp_path):
 
 def test_export_stage_stage2_builds_cmd(monkeypatch, tmp_path):
     from nind_denoise.pipeline.export import ExportStage
-    from nind_denoise.pipeline.base import Context
+    from nind_denoise.pipeline.base import JobContext
+    from nind_denoise.config.config import Config
 
     # Arrange inputs
     input_img = tmp_path / "denoised.tif"
@@ -85,10 +95,19 @@ def test_export_stage_stage2_builds_cmd(monkeypatch, tmp_path):
         captured["cwd"] = str(cwd) if cwd is not None else None
 
     monkeypatch.setattr(ExportStage, "_run_cmd", fake_run_cmd, raising=True)
-    monkeypatch.setattr(ExportStage, "verify", lambda self, ctx=None: None, raising=True)
+    monkeypatch.setattr(
+        ExportStage,
+        "verify_with_env",
+        lambda self, cfg, job_ctx: None,
+        raising=True,
+    )
 
     stg = ExportStage(tools, input_img, src_xmp, stage_xmp, out_tif, 2)
-    stg.execute(Context(verbose=False))
+
+    # Create Environment and JobContext for new pattern
+    cfg = Config(tools=tools, config={}, verbose=False)
+    job_ctx = JobContext(input_path=input_img, output_path=out_tif, output_dir=tmp_path)
+    stg.execute_with_env(cfg, job_ctx)
 
     args = captured["args"]
     # TIFF bpp should be 16 for stage 2

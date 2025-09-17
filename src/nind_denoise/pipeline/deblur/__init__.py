@@ -1,6 +1,5 @@
-"""Deblur operations for the nind-denoise pipeline."""
+"""Deblur operations for the brummer2019-denoise pipeline."""
 
-from .gmic import NoOpDeblur, RLDeblur
-from .pt_rl import RLDeblurPT
+from .deblur import Deblur, RLDeblur, RLDeblurPT
 
-__all__ = ["RLDeblur", "NoOpDeblur", "RLDeblurPT"]
+__all__ = ["Deblur", "RLDeblur", "RLDeblurPT"]

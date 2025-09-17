@@ -1,5 +1,8 @@
+from __future__ import annotations
+
+
 class NindError(Exception):
-    """Base class for nind-denoise exceptions."""
+    """Base class for brummer2019-denoise exceptions."""
 
 
 class ConfigError(NindError):
@@ -15,4 +18,10 @@ class SubprocessError(NindError):
 
 
 class FileLayoutError(NindError):
+    pass
+
+
+class ConfigurationError(Exception):
+    """Raised when configuration loading fails."""
+
     pass

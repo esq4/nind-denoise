@@ -1,5 +1,5 @@
 import nind_denoise
-
+import nind_denoise.pipeline.orchestrator
 
 SAMPLE_XMP = """
 <x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:darktable="http://darktable.sf.net/">
@@ -33,7 +33,9 @@ def test_build_xmp_stage1_filters_and_disables_flip(monkeypatch):
     monkeypatch.setattr(
         nind_denoise.xmp, "read_config", lambda verbose=False: _fake_config()
     )
-    out = nind_denoise.xmp.build_xmp(SAMPLE_XMP, stage=1, verbose=True)
+    out = nind_denoise.pipeline.orchestrator.build_xmp(
+        SAMPLE_XMP, stage=1, verbose=True
+    )
     assert "demosaic" in out
     assert "flip" in out and 'darktable:enabled="0"' in out
     assert "colorout" not in out
@@ -44,7 +46,7 @@ def test_build_xmp_stage2_filters_and_updates_iop_order(monkeypatch):
     monkeypatch.setattr(
         nind_denoise.xmp, "read_config", lambda verbose=False: _fake_config()
     )
-    out = nind_denoise.xmp.build_xmp(SAMPLE_XMP, stage=2)
+    out = nind_denoise.pipeline.orchestrator.build_xmp(SAMPLE_XMP, stage=2)
     assert "colorout" in out
     # Ensure the demosaic operation was removed from the history (iop_order may still mention it)
     assert 'darktable:operation="demosaic"' not in out
@@ -60,7 +62,7 @@ def test_write_xmp_file_roundtrip(tmp_path, monkeypatch):
     src = tmp_path / "in.xmp"
     dst = tmp_path / "out.xmp"
     src.write_text(SAMPLE_XMP, encoding="utf-8")
-    nind_denoise.xmp.write_xmp_file(src, dst, stage=1)
+    nind_denoise.pipeline.orchestrator.write_xmp_file(src, dst, stage=1)
     assert dst.exists()
     text = dst.read_text(encoding="utf-8")
     assert "demosaic" in text and "colorout" not in text

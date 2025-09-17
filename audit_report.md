@@ -30,14 +30,17 @@ integrated.
 
 ### ✅ **SUCCESSFULLY IMPLEMENTED**
 
-#### 1. Legacy Pipeline Deprecation
+#### 1. Legacy Pipeline Deprecation and Vestigial Code Cleanup
 
 - **Status**: COMPLETE ✓
 - **Implementation**:
-    - Added deprecation warning in `src/nind_denoise/pipeline.py`
-    - Clear documentation directing users to new package-based implementation
-    - Legacy functionality preserved for backward compatibility
-- **Architecture Plan Alignment**: Direct implementation of "Deprecate `nind_denoise/pipeline.py`" recommendation
+    - Legacy monolithic `src/nind_denoise/pipeline.py` completely removed
+    - Legacy configuration file `src/config/cli.yaml` completely removed
+    - All vestigial code from migration process cleaned up
+    - No deprecated imports or dead code branches remaining
+    - Backward compatibility maintained through proper deprecation of Context class (functional, not vestigial)
+- **Architecture Plan Alignment**: Full implementation of "Deprecate `nind_denoise/pipeline.py`" recommendation - now
+  completely removed
 
 #### 2. Strategy Pattern and Registries
 
@@ -125,7 +128,6 @@ integrated.
     - Created immutable `Environment` dataclass (frozen) for tools, config, verbose flag, and device selection
     - Created typed `JobContext` dataclass with required fields for input/output paths and processing parameters
     - Added `execute_with_env()` and `verify_with_env()` methods to all Operation classes
-    - Maintained backward compatibility with legacy `Context` through automatic conversion
     - Added comprehensive test coverage for immutability, type safety, and backward compatibility
 - **Architecture Plan Alignment**: Fully implements "Split into immutable `Environment` + per-stage `JobContext`"
   recommendation with enhanced type safety
@@ -156,7 +158,7 @@ integrated.
 4. **Error Handling**: Centralized subprocess error management
 5. **Stage Implementation**: All stages complete with full ABC compliance and verification methods
 6. **Deblur Strategy Completeness**: Complete with both GMIC and PyTorch options available
-7. **Context/Environment Architecture**: Immutable Environment + typed JobContext with full backward compatibility
+7. **Context/Environment Architecture**: Immutable Environment + typed JobContext
 
 ### **Medium Compliance Areas** (70-80%)
 
@@ -171,12 +173,9 @@ integrated.
 1. **Device Selection**: Add denoiser device configuration (CPU/CUDA/MPS)
 2. **Enhanced Model Management**: Add checksums, versioning, cache management
 
-*Note: Context/Environment Split has been successfully completed and moved to "SUCCESSFULLY IMPLEMENTED" section above.*
-
 ### **Documentation Updates** (Low Priority)
 
-1. Update migration guide for PyTorch deblur users
-2. Document new registry pattern for extensibility
+1. Document new registry pattern for extensibility
 3. Add examples of custom stage implementations
 
 ---

@@ -1,7 +1,8 @@
 from pathlib import Path
 
+from nind_denoise.config.config import Config
+from nind_denoise.pipeline.base import JobContext
 from nind_denoise.pipeline.deblur import RLDeblur
-from nind_denoise.pipeline.base import Context
 
 
 def test_rldeblur_builds_args_and_renames(monkeypatch, tmp_path):
@@ -24,19 +25,19 @@ def test_rldeblur_builds_args_and_renames(monkeypatch, tmp_path):
 
     monkeypatch.setattr(RLDeblur, "_run_cmd", fake_run_cmd, raising=True)
 
-    ctx = Context(
-        outpath=outpath,
-        output_filepath=stage2,
+    # Create mock tools for Environment
+    cfg = Config(verbose=True)
+    job_ctx = JobContext(
+        input_path=stage2,
+        output_path=outpath,
         sigma=2,
-        iteration="5",
-        quality="92",
-        cmd_gmic=str(output_dir / "gmic"),
-        output_dir=output_dir,
-        verbose=True,
+        iterations=5,
+        quality=92,
+        intermediate_path=stage2,
     )
 
     # Execute
-    RLDeblur().execute(ctx)
+    RLDeblur().execute_with_env(cfg, job_ctx)
 
     # Verify args constructed and tmp was renamed to final outpath
     args = captured["args"]

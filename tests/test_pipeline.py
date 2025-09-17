@@ -4,7 +4,9 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from nind_denoise.config import valid_extensions
+from nind_denoise.config import Config
+
+cfg = Config()
 
 
 @pytest.mark.parametrize("ext", ["jpg", "tiff"])  # real tools; slow/integration
@@ -13,10 +15,13 @@ def test_raw_pipeline_cli_runs_with_real_tools(tmp_path, ext):
     # Locate a RAW sample using supported extensions from config
     raw_dir = pathlib.Path(__file__).parent / "test_raw"
     candidates = [
-        p for p in raw_dir.iterdir()
-        if p.is_file() and p.suffix.lower() in valid_extensions
+        p
+        for p in raw_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in cfg.valid_extensions
     ]
-    assert candidates, "No RAW sample with a supported extension found in tests/test_raw"
+    assert (
+        candidates
+    ), "No RAW sample with a supported extension found in tests/test_raw"
 
     raw = candidates[0]
 

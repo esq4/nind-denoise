@@ -1,7 +1,8 @@
 """Test PyTorch RL deblur integration with the new pipeline architecture."""
 
-from nind_denoise.pipeline import get_deblur, register_deblur
-from nind_denoise.pipeline.base import Context, DeblurOperation
+from nind_denoise.config.config import Config
+from nind_denoise.pipeline import Deblur, get_deblur, register_deblur
+from nind_denoise.pipeline.base import JobContext
 from nind_denoise.pipeline.deblur import RLDeblurPT
 
 
@@ -13,7 +14,7 @@ def test_pytorch_deblur_registry():
 
     # Test that we can instantiate the class
     deblur_instance = deblur_class()
-    assert isinstance(deblur_instance, DeblurOperation)
+    assert isinstance(deblur_instance, Deblur)
     assert isinstance(deblur_instance, RLDeblurPT)
 
 
@@ -35,14 +36,14 @@ def test_pytorch_deblur_verify_without_context():
 def test_deblur_registry_extensibility():
     """Test that the deblur registry is extensible for custom implementations."""
 
-    class CustomDeblur(DeblurOperation):
+    class CustomDeblur(Deblur):
         def describe(self) -> str:
             return "Custom Deblur"
 
-        def execute(self, ctx: Context) -> None:
+        def execute_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
             pass
 
-        def verify(self, ctx: Context | None = None) -> None:
+        def verify_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
             pass
 
     # Register custom deblur
@@ -54,7 +55,7 @@ def test_deblur_registry_extensibility():
 
     # Test instantiation
     custom_instance = custom_class()
-    assert isinstance(custom_instance, DeblurOperation)
+    assert isinstance(custom_instance, Deblur)
     assert custom_instance.describe() == "Custom Deblur"
 
 

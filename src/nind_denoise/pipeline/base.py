@@ -6,26 +6,12 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Sequence
+from typing import Optional, Sequence
 
-from ..config import Tools  # type: ignore[reportMissingImports]
+from nind_denoise.config import Config  # type: ignore[reportMissingImports]
+from nind_denoise.config.config import Config
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class Environment:
-    """Immutable environment containing tools, config, and other shared state.
-
-    This represents the execution environment that remains constant across
-    all pipeline stages for a given run.
-    """
-
-    tools: Tools
-    config: Dict[str, Any]
-    verbose: bool = False
-    # Future device selection for denoiser (CPU/CUDA/MPS)
-    device: Optional[str] = None
 
 
 @dataclass
@@ -39,7 +25,6 @@ class JobContext:
     # Input/output paths (required)
     input_path: Path
     output_path: Path
-    output_dir: Path
 
     # Stage-specific processing parameters
     sigma: int = 1
@@ -48,24 +33,6 @@ class JobContext:
 
     # Optional stage-specific paths
     intermediate_path: Optional[Path] = None
-
-
-@dataclass
-class Context:
-    """Legacy context class for backward compatibility.
-
-    DEPRECATED: Use Environment + JobContext instead for new code.
-    This will be removed in a future version.
-    """
-    inpath: Optional[Path] = None
-    outpath: Optional[Path] = None
-    output_dir: Optional[Path] = None
-    output_filepath: Optional[Path] = None
-    sigma: Optional[int] = None
-    iteration: Optional[str] = None
-    quality: Optional[str] = None
-    cmd_gmic: Optional[str] = None
-    verbose: bool = False
 
 
 class StageError(Exception):
@@ -80,69 +47,22 @@ class Operation(ABC):
         ...
 
     @abstractmethod
-    def execute(self, ctx: Context) -> None:  # pragma: no cover
-        """Execute operation with legacy Context (deprecated).
-
-        DEPRECATED: Override execute_with_env instead for new implementations.
-        """
+    def execute_with_env(
+        self, cfg: Config, job_ctx: JobContext
+    ) -> None:  # pragma: no cover
+        """Execute operation with Environment + JobContext pattern."""
         ...
 
     @abstractmethod
-    def verify(self, ctx: Optional[Context] = None) -> None:  # pragma: no cover
-        """Verify expected outputs for this operation.
+    def verify_with_env(
+        self, cfg: Config, job_ctx: JobContext
+    ) -> None:  # pragma: no cover
+        """Verify operation outputs with Environment + JobContext pattern.
         Implementations should raise StageError on failure.
         """
         ...
 
-    def execute_with_env(self, env: Environment, job_ctx: JobContext) -> None:
-        """Execute operation with new Environment + JobContext pattern.
-
-        Default implementation converts to legacy Context for backward compatibility.
-        Override this method in new implementations for type-safe execution.
-        """
-        # Convert new context types to legacy Context for backward compatibility
-        legacy_ctx = Context(
-            inpath=job_ctx.input_path,
-            outpath=job_ctx.output_path,
-            output_dir=job_ctx.output_dir,
-            output_filepath=job_ctx.intermediate_path or job_ctx.output_path,
-            sigma=job_ctx.sigma,
-            iteration=str(job_ctx.iterations),
-            quality=str(job_ctx.quality),
-            cmd_gmic=str(env.tools.gmic) if env.tools.gmic else None,
-            verbose=env.verbose,
-        )
-        self.execute(legacy_ctx)
-
-    def verify_with_env(self, env: Environment, job_ctx: JobContext) -> None:
-        """Verify operation outputs with new Environment + JobContext pattern.
-
-        Default implementation converts to legacy Context for backward compatibility.
-        Override this method in new implementations for type-safe verification.
-        """
-        # Convert new context types to legacy Context for backward compatibility
-        legacy_ctx = Context(
-            inpath=job_ctx.input_path,
-            outpath=job_ctx.output_path,
-            output_dir=job_ctx.output_dir,
-            output_filepath=job_ctx.intermediate_path or job_ctx.output_path,
-            sigma=job_ctx.sigma,
-            iteration=str(job_ctx.iterations),
-            quality=str(job_ctx.quality),
-            cmd_gmic=str(env.tools.gmic) if env.tools.gmic else None,
-            verbose=env.verbose,
-        )
-        self.verify(legacy_ctx)
-
     # Shared helpers usable by all operations
-    def _run_cmd(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
-        from . import (
-            run_cmd as _run_cmd_shared,
-        )  # Defer import to avoid circular dependency during import time
-
-        if hasattr(self, "_ctx") and self._ctx.verbose:  # type: ignore[attr-defined]
-            logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
-        _run_cmd_shared(args, cwd=cwd)
 
     def _prepare_output_file(self, path: Path) -> None:
         """Ensure the output directory exists and remove any pre-existing file.
@@ -169,15 +89,27 @@ class ExportOperation(Operation, ABC):
         """Helper to build and write a stage-specific XMP file.
         Delegates to nind_denoise.xmp.write_xmp_file to avoid duplicating logic.
         """
-        from ..xmp import write_xmp_file as _write_xmp_file
+        from nind_denoise.pipeline.orchestrator import write_xmp_file as _write_xmp_file
 
         _write_xmp_file(src_xmp, dst_xmp, stage, verbose=verbose)
 
+    def _run_cmd(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
+        from . import (
+            run_cmd as _run_cmd_shared,
+        )  # Defer import to avoid circular dependency during import time
+
+        if hasattr(self, "_ctx") and self._ctx.verbose:  # type: ignore[attr-defined]
+            logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
+        _run_cmd_shared(args, cwd=cwd)
+
 
 class DenoiseOperation(Operation, ABC):
-    pass
 
+    def _run_cmd(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
+        from . import (
+            run_cmd as _run_cmd_shared,
+        )  # Defer import to avoid circular dependency during import time
 
-class DeblurOperation(Operation, ABC):
-    def __init__(self, tools: Optional[Tools] = None):
-        self.tools = tools
+        if hasattr(self, "_ctx") and self._ctx.verbose:  # type: ignore[attr-defined]
+            logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
+        _run_cmd_shared(args, cwd=cwd)
