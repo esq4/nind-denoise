@@ -4,8 +4,7 @@ version = "0.3.1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "asttokens~=3.0.0",
+dependencies = ["asttokens~=3.0.0",
     "beautifulsoup4~=4.13.4",
     "bs4~=0.0.2",
     "configargparse~=1.7.1",
@@ -52,27 +51,14 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "pylint>=3.3.8",
+test = ["pylint>=3.3.8",
     "pytest>=8.4.2",
-<<<<<<< Updated upstream
-]
-
-[dependency-groups]
-dev = [
-    "pylint>=3.3.8",
-    "pytest>=8.4.2",
-]
-=======
-<<<<<<< HEAD
     "nind-denoise",
-=======
->>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
     "pytest-cov>=7.0.0",
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -80,18 +66,5 @@ where = ["src"]
 [tool.setuptools.package-data]
 "nind_denoise" = ["configs/*.yaml"]
 
-<<<<<<< HEAD
-[tool.pylint.messages_control]
-# Do not disable pylint messaging
-
-[tool.pylint.format]
-max-line-length = 100
-
-[tool.pylint.typecheck]
-# OpenCV exposes attributes dynamically; suppress false positives here.
-generated-members = ["cv2.*"]
-=======
 [tool.uv.sources]
 nind-denoise = { workspace = true }
->>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
->>>>>>> Stashed changes

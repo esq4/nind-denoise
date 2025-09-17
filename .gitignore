@@ -20,3 +20,4 @@ src/__pycache__
 __pycache__
 dist
 models/brummer2019/generator_650.pt
+*.pyc
