@@ -1,4 +1,3 @@
-
 --[[
   darktable is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -30,10 +29,10 @@
     * start the script "nind_denoise_rl" from Script Manager
     * in lua preferences:
       - paste in the nind_denoise command, including the --model-path, e.g.:
-        python3 ~/nind-denoise/src/nind_denoise/denoise_image.py  --model_path "~/nind-denoise/models/2021-06-14T20_27_nn_train_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_with_clean_data.yaml_--g_model_path_..-..-models-nind_denoise-2021-06-12T11_48_nn_train_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_w/generator_650.pt"
+        python3 ~/brummer2019-denoise/src/nind_denoise/pipeline/denoise/brummer2019.py  --model_path "~/brummer2019-denoise/models/2021-06-14T20_27_nn_train_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_with_clean_data.yaml_--g_model_path_..-..-models-nind_denoise-2021-06-12T11_48_nn_train_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_w/generator_650.pt"
       - select GMic cli executable (for RL-deblur)
       - select the exiftool cli executable (optional, to copy EXIF to final image)
-    * from "export selected", choose "nind-denoise RL" as target storage
+    * from "export selected", choose "brummer2019-denoise RL" as target storage
     * for "format options", either TIFF 8-bit or 16-bit is recommended
 ]]
 -- =============================================
@@ -53,9 +52,9 @@ du.check_min_api_version("7.0.0", MODULE_NAME)
 
 -- Script data structure for script_manager integration
 local script_data = {
-  destroy = nil, -- Function to destroy the script
-  destroy_method = nil, -- Set to hide for libs since we can't destroy them completely yet
-  restart = nil -- How to restart the (lib) script after it's been hidden
+    destroy = nil, -- Function to destroy the script
+    destroy_method = nil, -- Set to hide for common since we can't destroy them completely yet
+    restart = nil -- How to restart the (lib) script after it's been hidden
 }
 
 -- OS compatibility path separator
@@ -63,21 +62,23 @@ local PS = dt.configuration.running_os == "windows" and "\\" or "/"
 
 -- Translation setup
 local gettext = dt.gettext
-gettext.bindtextdomain(MODULE_NAME, dt.configuration.config_dir..PS.."lua"..PS.."locale"..PS)
-local function _(msgid) return gettext.dgettext(MODULE_NAME, msgid) end
+gettext.bindtextdomain(MODULE_NAME, dt.configuration.config_dir .. PS .. "lua" .. PS .. "locale" .. PS)
+local function _(msgid)
+    return gettext.dgettext(MODULE_NAME, msgid)
+end
 
 -- =============================================
 -- MODULE PREFERENCES INITIALIZATION
 -- =============================================
 
 if not dt.preferences.read(MODULE_NAME, "initialized", "bool") then
-  -- Initialize default preferences
-  dt.preferences.write(MODULE_NAME, "output_path", "string", "$(FILE_FOLDER)/darktable_exported/$(FILE_NAME)")
-  dt.preferences.write(MODULE_NAME, "output_format", "integer", 1)
-  dt.preferences.write(MODULE_NAME, "sigma", "string", "1")
-  dt.preferences.write(MODULE_NAME, "iterations", "string", "20")
-  dt.preferences.write(MODULE_NAME, "jpg_quality", "string", "95")
-  dt.preferences.write(MODULE_NAME, "initialized", "bool", true)
+    -- Initialize default preferences
+    dt.preferences.write(MODULE_NAME, "output_path", "string", "$(FILE_FOLDER)/darktable_exported/$(FILE_NAME)")
+    dt.preferences.write(MODULE_NAME, "output_format", "integer", 1)
+    dt.preferences.write(MODULE_NAME, "sigma", "string", "1")
+    dt.preferences.write(MODULE_NAME, "iterations", "string", "20")
+    dt.preferences.write(MODULE_NAME, "jpg_quality", "string", "95")
+    dt.preferences.write(MODULE_NAME, "initialized", "bool", true)
 end
 
 -- =============================================
@@ -85,138 +86,144 @@ end
 -- =============================================
 
 local NDRL = {
-  substitutes = {},
-  placeholders = {
-    "ROLL_NAME","FILE_FOLDER","FILE_NAME","FILE_EXTENSION","ID","VERSION","SEQUENCE",
-    "YEAR","MONTH","DAY","HOUR","MINUTE","SECOND","EXIF_YEAR","EXIF_MONTH","EXIF_DAY",
-    "EXIF_HOUR","EXIF_MINUTE","EXIF_SECOND","STARS","LABELS","MAKER","MODEL","TITLE",
-    "CREATOR","PUBLISHER","RIGHTS","USERNAME","PICTURES_FOLDER","HOME","DESKTOP",
-    "EXIF_ISO","EXIF_EXPOSURE","EXIF_EXPOSURE_BIAS","EXIF_APERTURE","EXIF_FOCUS_DISTANCE",
-    "EXIF_FOCAL_LENGTH","LONGITUDE","LATITUDE","ELEVATION","LENS","DESCRIPTION","EXIF_CROP"
-  },
+    substitutes = {},
+    placeholders = {
+        "ROLL_NAME", "FILE_FOLDER", "FILE_NAME", "FILE_EXTENSION", "ID", "VERSION", "SEQUENCE",
+        "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND", "EXIF_YEAR", "EXIF_MONTH", "EXIF_DAY",
+        "EXIF_HOUR", "EXIF_MINUTE", "EXIF_SECOND", "STARS", "LABELS", "MAKER", "MODEL", "TITLE",
+        "CREATOR", "PUBLISHER", "RIGHTS", "USERNAME", "PICTURES_FOLDER", "HOME", "DESKTOP",
+        "EXIF_ISO", "EXIF_EXPOSURE", "EXIF_EXPOSURE_BIAS", "EXIF_APERTURE", "EXIF_FOCUS_DISTANCE",
+        "EXIF_FOCAL_LENGTH", "LONGITUDE", "LATITUDE", "ELEVATION", "LENS", "DESCRIPTION", "EXIF_CROP"
+    },
 
-  -- Output folder path entry widget
-  output_folder_path = dt.new_widget("entry") {
-    tooltip = _("$(ROLL_NAME) - film roll name\n") ..
-              _("$(FILE_FOLDER) - image file folder\n") ..
-              _("$(FILE_NAME) - image file name\n") ..
-              _("$(FILE_EXTENSION) - image file extension\n") ..
-              _("$(ID) - image id\n") ..
-              _("$(VERSION) - version number\n") ..
-              _("$(SEQUENCE) - sequence number of selection\n") ..
-              _("$(YEAR) - current year\n") ..
-              _("$(MONTH) - current month\n") ..
-              _("$(DAY) - current day\n") ..
-              _("$(HOUR) - current hour\n") ..
-              _("$(MINUTE) - current minute\n") ..
-              _("$(SECOND) - current second\n") ..
-              _("$(EXIF_YEAR) - EXIF year\n") ..
-              _("$(EXIF_MONTH) - EXIF month\n") ..
-              _("$(EXIF_DAY) - EXIF day\n") ..
-              _("$(EXIF_HOUR) - EXIF hour\n") ..
-              _("$(EXIF_MINUTE) - EXIF minute\n") ..
-              _("$(EXIF_SECOND) - EXIF seconds\n") ..
-              _("$(EXIF_ISO) - EXIF ISO\n") ..
-              _("$(EXIF_EXPOSURE) - EXIF exposure\n") ..
-              _("$(EXIF_EXPOSURE_BIAS) - EXIF exposure bias\n") ..
-              _("$(EXIF_APERTURE) - EXIF aperture\n") ..
-              _("$(EXIF_FOCAL_LENGTH) - EXIF focal length\n") ..
-              _("$(EXIF_FOCUS_DISTANCE) - EXIF focus distance\n") ..
-              _("$(EXIF_CROP) - EXIF crop\n") ..
-              _("$(LONGITUDE) - longitude\n") ..
-              _("$(LATITUDE) - latitude\n") ..
-              _("$(ELEVATION) - elevation\n") ..
-              _("$(STARS) - star rating\n") ..
-              _("$(LABELS) - color labels\n") ..
-              _("$(MAKER) - camera maker\n") ..
-              _("$(MODEL) - camera model\n") ..
-              _("$(LENS) - lens\n") ..
-              _("$(TITLE) - title from metadata\n") ..
-              _("$(DESCRIPTION) - description from metadata\n") ..
-              _("$(CREATOR) - creator from metadata\n") ..
-              _("$(PUBLISHER) - publisher from metadata\n") ..
-              _("$(RIGHTS) - rights from metadata\n") ..
-              _("$(USERNAME) - username\n") ..
-              _("$(PICTURES_FOLDER) - pictures folder\n") ..
-              _("$(HOME) - user's home directory\n") ..
-              _("$(DESKTOP) - desktop directory"),
-    placeholder = _("leave blank to use the location selected below"),
-    editable = true,
-  },
+    -- Output folder path entry widget
+    output_folder_path = dt.new_widget("entry") {
+        tooltip = _("$(ROLL_NAME) - film roll name\n") ..
+                _("$(FILE_FOLDER) - image file folder\n") ..
+                _("$(FILE_NAME) - image file name\n") ..
+                _("$(FILE_EXTENSION) - image file extension\n") ..
+                _("$(ID) - image id\n") ..
+                _("$(VERSION) - version number\n") ..
+                _("$(SEQUENCE) - sequence number of selection\n") ..
+                _("$(YEAR) - current year\n") ..
+                _("$(MONTH) - current month\n") ..
+                _("$(DAY) - current day\n") ..
+                _("$(HOUR) - current hour\n") ..
+                _("$(MINUTE) - current minute\n") ..
+                _("$(SECOND) - current second\n") ..
+                _("$(EXIF_YEAR) - EXIF year\n") ..
+                _("$(EXIF_MONTH) - EXIF month\n") ..
+                _("$(EXIF_DAY) - EXIF day\n") ..
+                _("$(EXIF_HOUR) - EXIF hour\n") ..
+                _("$(EXIF_MINUTE) - EXIF minute\n") ..
+                _("$(EXIF_SECOND) - EXIF seconds\n") ..
+                _("$(EXIF_ISO) - EXIF ISO\n") ..
+                _("$(EXIF_EXPOSURE) - EXIF exposure\n") ..
+                _("$(EXIF_EXPOSURE_BIAS) - EXIF exposure bias\n") ..
+                _("$(EXIF_APERTURE) - EXIF aperture\n") ..
+                _("$(EXIF_FOCAL_LENGTH) - EXIF focal length\n") ..
+                _("$(EXIF_FOCUS_DISTANCE) - EXIF focus distance\n") ..
+                _("$(EXIF_CROP) - EXIF crop\n") ..
+                _("$(LONGITUDE) - longitude\n") ..
+                _("$(LATITUDE) - latitude\n") ..
+                _("$(ELEVATION) - elevation\n") ..
+                _("$(STARS) - star rating\n") ..
+                _("$(LABELS) - color labels\n") ..
+                _("$(MAKER) - camera maker\n") ..
+                _("$(MODEL) - camera model\n") ..
+                _("$(LENS) - lens\n") ..
+                _("$(TITLE) - title from metadata\n") ..
+                _("$(DESCRIPTION) - description from metadata\n") ..
+                _("$(CREATOR) - creator from metadata\n") ..
+                _("$(PUBLISHER) - publisher from metadata\n") ..
+                _("$(RIGHTS) - rights from metadata\n") ..
+                _("$(USERNAME) - username\n") ..
+                _("$(PICTURES_FOLDER) - pictures folder\n") ..
+                _("$(HOME) - user's home directory\n") ..
+                _("$(DESKTOP) - desktop directory"),
+        placeholder = _("leave blank to use the location selected below"),
+        editable = true,
+    },
 
-  -- Output folder selector widget
-  output_folder_selector = dt.new_widget("file_chooser_button") {
-    title = _("select output folder"),
-    tooltip = _("select output folder"),
-    value = dt.preferences.read(MODULE_NAME, "output_folder", "string"),
-    is_directory = true,
-    changed_callback = function(self)
-      dt.preferences.write(MODULE_NAME, "output_folder", "string", self.value)
-    end
-  },
+    -- Output folder selector widget
+    output_folder_selector = dt.new_widget("file_chooser_button") {
+        title = _("select output folder"),
+        tooltip = _("select output folder"),
+        value = dt.preferences.read(MODULE_NAME, "output_folder", "string"),
+        is_directory = true,
+        changed_callback = function(self)
+            dt.preferences.write(MODULE_NAME, "output_folder", "string", self.value)
+        end
+    },
 
-  -- Output format selection widget
-  output_format = dt.new_widget("combobox") {
-    label = _("output format"),
-    editable = false,
-    selected = 1,
-    _("JPG"),
-    _("TIFF"),
-    changed_callback = function(self) output_format_changed() end
-  },
+    -- Output format selection widget
+    output_format = dt.new_widget("combobox") {
+        label = _("output format"),
+        editable = false,
+        selected = 1,
+        _("JPG"),
+        _("TIFF"),
+        changed_callback = function(self)
+            output_format_changed()
+        end
+    },
 
-  -- JPEG quality slider widget
-  jpg_quality_slider = dt.new_widget("slider") {
-    label = _("output jpg quality"),
-    tooltip = _("quality of the output jpg file"),
-    soft_min = 70,
-    soft_max = 100,
-    hard_min = 70,
-    hard_max = 100,
-    step = 2,
-    digits = 0,
-    value = 95.0,
-  },
+    -- JPEG quality slider widget
+    jpg_quality_slider = dt.new_widget("slider") {
+        label = _("output jpg quality"),
+        tooltip = _("quality of the output jpg file"),
+        soft_min = 70,
+        soft_max = 100,
+        hard_min = 70,
+        hard_max = 100,
+        step = 2,
+        digits = 0,
+        value = 95.0,
+    },
 
-  -- Denoise checkbox widget
-  denoise_chkbox = dt.new_widget("check_button") {
-    label = _("apply nind-denoise"),
-    tooltip = _("apply nind-denoise"),
-    clicked_callback = function(self) toggle_processing_options() end
-  },
+    -- Denoise checkbox widget
+    denoise_chkbox = dt.new_widget("check_button") {
+        label = _("apply brummer2019-denoise"),
+        tooltip = _("apply brummer2019-denoise"),
+        clicked_callback = function(self)
+            toggle_processing_options()
+        end
+    },
 
-  -- RL deblur checkbox widget
-  rl_deblur_chkbox = dt.new_widget("check_button") {
-    label = _("apply RL deblur"),
-    tooltip = _("apply GMic's Richardson-Lucy deblur/sharpening"),
-    clicked_callback = function(self) toggle_processing_options() end
-  },
+    -- RL deblur checkbox widget
+    rl_deblur_chkbox = dt.new_widget("check_button") {
+        label = _("apply RL deblur"),
+        tooltip = _("apply GMic's Richardson-Lucy deblur/sharpening"),
+        clicked_callback = function(self)
+            toggle_processing_options()
+        end
+    },
 
-  -- Sigma slider for RL deblur
-  sigma_slider = dt.new_widget("slider") {
-    label = _("sigma"),
-    tooltip = _("controls the width of the blur that's applied"),
-    soft_min = 0.3,
-    soft_max = 2.0,
-    hard_min = 0.0,
-    hard_max = 3.0,
-    step = 0.05,
-    digits = 2,
-    value = 1.0
-  },
+    -- Sigma slider for RL deblur
+    sigma_slider = dt.new_widget("slider") {
+        label = _("sigma"),
+        tooltip = _("controls the width of the blur that's applied"),
+        soft_min = 0.3,
+        soft_max = 2.0,
+        hard_min = 0.0,
+        hard_max = 3.0,
+        step = 0.05,
+        digits = 2,
+        value = 1.0
+    },
 
-  -- Iterations slider for RL deblur
-  iterations_slider = dt.new_widget("slider") {
-    label = _("iterations"),
-    tooltip = _("increase for better sharpening, but slower"),
-    soft_min = 0,
-    soft_max = 100,
-    hard_min = 0,
-    hard_max = 100,
-    step = 5,
-    digits = 0,
-    value = 10.0
-  }
+    -- Iterations slider for RL deblur
+    iterations_slider = dt.new_widget("slider") {
+        label = _("iterations"),
+        tooltip = _("increase for better sharpening, but slower"),
+        soft_min = 0,
+        soft_max = 100,
+        hard_min = 0,
+        hard_max = 100,
+        step = 5,
+        digits = 0,
+        value = 10.0
+    }
 }
 
 -- =============================================
@@ -225,23 +232,25 @@ local NDRL = {
 
 -- Toggle processing options visibility based on checkbox states
 local function toggle_processing_options()
-  NDRL.sigma_slider.sensitive = NDRL.rl_deblur_chkbox.value
-  NDRL.iterations_slider.sensitive = NDRL.rl_deblur_chkbox.value
+    NDRL.sigma_slider.sensitive = NDRL.rl_deblur_chkbox.value
+    NDRL.iterations_slider.sensitive = NDRL.rl_deblur_chkbox.value
 
-  -- Hide output format options if neither processing is enabled
-  local passthrough = not NDRL.rl_deblur_chkbox.value and not NDRL.denoise_chkbox.value
-  NDRL.output_format.visible = not passthrough
-  NDRL.jpg_quality_slider.visible = not passthrough and NDRL.output_format.selected == 1
+    -- Hide output format options if neither processing is enabled
+    local passthrough = not NDRL.rl_deblur_chkbox.value and not NDRL.denoise_chkbox.value
+    NDRL.output_format.visible = not passthrough
+    NDRL.jpg_quality_slider.visible = not passthrough and NDRL.output_format.selected == 1
 end
 
 -- Handle output format changes
 local function output_format_changed()
-  if NDRL.output_format == nil then return true end
+    if NDRL.output_format == nil then
+        return true
+    end
 
-  local is_jpg = NDRL.output_format.selected == 1
-  NDRL.jpg_quality_slider.visible = is_jpg
+    local is_jpg = NDRL.output_format.selected == 1
+    NDRL.jpg_quality_slider.visible = is_jpg
 
-  dt.preferences.write(MODULE_NAME, "output_format", "integer", NDRL.output_format.selected)
+    dt.preferences.write(MODULE_NAME, "output_format", "integer", NDRL.output_format.selected)
 end
 
 -- =============================================
@@ -250,8 +259,8 @@ end
 
 -- Check if the image format is supported for processing
 local function is_supported(storage, img_format)
-  -- Only accept TIF for lossless intermediate file (JPG compression interferes with denoising)
-  return img_format.extension == "tif"
+    -- Only accept TIF for lossless intermediate file (JPG compression interferes with denoising)
+    return img_format.extension == "tif"
 end
 
 -- =============================================
@@ -260,225 +269,238 @@ end
 
 -- Build substitution list from image metadata
 local function build_substitution_list(image, sequence, datetime, username, pic_folder, home, desktop)
-  local colorlabels = {}
-  if image.red then table.insert(colorlabels, "red") end
-  if image.yellow then table.insert(colorlabels, "yellow") end
-  if image.green then table.insert(colorlabels, "green") end
-  if image.blue then table.insert(colorlabels, "blue") end
-  if image.purple then table.insert(colorlabels, "purple") end
+    local colorlabels = {}
+    if image.red then
+        table.insert(colorlabels, "red")
+    end
+    if image.yellow then
+        table.insert(colorlabels, "yellow")
+    end
+    if image.green then
+        table.insert(colorlabels, "green")
+    end
+    if image.blue then
+        table.insert(colorlabels, "blue")
+    end
+    if image.purple then
+        table.insert(colorlabels, "purple")
+    end
 
-  local labels = #colorlabels == 1 and colorlabels[1] or du.join(colorlabels, ",")
-  local eyear, emon, eday, ehour, emin, esec = string.match(image.exif_datetime_taken, "(%d-):(%d-):(%d-) (%d-):(%d-):(%d-)$")
+    local labels = #colorlabels == 1 and colorlabels[1] or du.join(colorlabels, ",")
+    local eyear, emon, eday, ehour, emin, esec = string.match(image.exif_datetime_taken, "(%d-):(%d-):(%d-) (%d-):(%d-):(%d-)$")
 
-  local replacements = {
-    image.film, image.path, df.get_filename(image.filename), string.upper(df.get_filetype(image.filename)),
-    image.id, image.duplicate_index, string.format("%04d", sequence),
-    datetime.year, string.format("%02d", datetime.month), string.format("%02d", datetime.day),
-    string.format("%02d", datetime.hour), string.format("%02d", datetime.min), string.format("%02d", datetime.sec),
-    eyear, emon, eday, ehour, emin, esec,
-    image.rating, labels, image.exif_maker, image.exif_model, image.title,
-    image.creator, image.publisher, image.rights, username, pic_folder,
-    home, desktop, image.exif_iso, image.exif_exposure, image.exif_exposure_bias,
-    image.exif_aperture, image.exif_focus_distance, image.exif_focal_length,
-    image.longitude, image.latitude, image.elevation, image.exif_lens,
-    image.description, image.exif_crop
-  }
+    local replacements = {
+        image.film, image.path, df.get_filename(image.filename), string.upper(df.get_filetype(image.filename)),
+        image.id, image.duplicate_index, string.format("%04d", sequence),
+        datetime.year, string.format("%02d", datetime.month), string.format("%02d", datetime.day),
+        string.format("%02d", datetime.hour), string.format("%02d", datetime.min), string.format("%02d", datetime.sec),
+        eyear, emon, eday, ehour, emin, esec,
+        image.rating, labels, image.exif_maker, image.exif_model, image.title,
+        image.creator, image.publisher, image.rights, username, pic_folder,
+        home, desktop, image.exif_iso, image.exif_exposure, image.exif_exposure_bias,
+        image.exif_aperture, image.exif_focus_distance, image.exif_focal_length,
+        image.longitude, image.latitude, image.elevation, image.exif_lens,
+        image.description, image.exif_crop
+    }
 
-  -- Populate substitutes table
-                         image.exif_exposure,
-                         image.exif_exposure_bias,
-                         image.exif_aperture,
-                         image.exif_focus_distance,
-                         image.exif_focal_length,
-                         image.longitude,
-                         image.latitude,
-                         image.elevation,
-                         image.exif_lens,
-                         image.description,
-                         image.exif_crop
-                       }
+    -- Populate substitutes table
+    replacements = {
+        image.exif_exposure,
+        image.exif_exposure_bias,
+        image.exif_aperture,
+        image.exif_focus_distance,
+        image.exif_focal_length,
+        image.longitude,
+        image.latitude,
+        image.elevation,
+        image.exif_lens,
+        image.description,
+        image.exif_crop
+    }
 
-  for i=1,#NDRL.placeholders,1 do
-    NDRL.substitutes[NDRL.placeholders[i]] = replacements[i]
-  end
+    for i = 1, #NDRL.placeholders, 1 do
+        NDRL.substitutes[NDRL.placeholders[i]] = replacements[i]
+    end
 end
 
 local function substitute_list(str)
-  -- replace the substitution variables in a string
-  for match in string.gmatch(str, "%$%(.-%)") do
-    local var = string.match(match, "%$%((.-)%)")
-    if NDRL.substitutes[var] then
-      str = string.gsub(str, "%$%("..var.."%)", NDRL.substitutes[var])
-    else
-      dt.print_error(_("unrecognized variable " .. var))
-      dt.print(_("unknown variable " .. var .. ", aborting..."))
-      return -1
+    -- replace the substitution variables in a string
+    for match in string.gmatch(str, "%$%(.-%)") do
+        local var = string.match(match, "%$%((.-)%)")
+        if NDRL.substitutes[var] then
+            str = string.gsub(str, "%$%(" .. var .. "%)", NDRL.substitutes[var])
+        else
+            dt.print_error(_("unrecognized variable " .. var))
+            dt.print(_("unknown variable " .. var .. ", aborting..."))
+            return -1
+        end
     end
-  end
-  return str
+    return str
 end
 
 local function clear_substitute_list()
-  for i=1,#NDRL.placeholders,1 do NDRL.substitutes[NDRL.placeholders[i]] = nil end
+    for i = 1, #NDRL.placeholders, 1 do
+        NDRL.substitutes[NDRL.placeholders[i]] = nil
+    end
 end
 
 
 
--- perform nind-denoise and GMIC RL-decon on a single exported image ----------------------------------
+-- perform brummer2019-denoise and GMIC RL-decon on a single exported image ----------------------------------
 local function store(storage, image, img_format, temp_name, img_num, total, hq, extra)
-  if img_format.extension == "tif" and img_format.bpp ~= 16 and img_format.bpp ~= 8 then
-    dt.print_log(_("ERROR: Please set TIFF bit depth to 8 or 16"))
-    dt.print(_("ERROR: Please set TIFF bit depth to 8 or 16"))
-    os.remove(temp_name)
-    return false
-  end
-
-  local org_temp_name = temp_name
-  local to_delete = {}
-  table.insert(to_delete, temp_name)
-
-  local denoise_name, tmp_rl_name, new_name, run_cmd, result, options
-
-  -- determine output format
-  local file_ext = img_format.extension   -- tiff only
-
-  if extra.denoise_enabled or extra.rl_deblur_enabled then
-    if extra.output_format == 1 then
-      file_ext = "jpg"
-    else
-      file_ext = "tif"
-    end
-  end
-
-  new_name = extra.output_folder..PS..df.get_basename(temp_name).."."..file_ext
-
-  -- override output path/filename as needed
-  if extra.output_path ~= "" then
-    local output_path = extra.output_path
-    local datetime = os.date("*t")
-
-    build_substitution_list(image, img_num, datetime, USER, PICTURES, HOME, DESKTOP)
-	  output_path = substitute_list(output_path)
-
-	  if output_path == -1 then
-	    dt.print(_("ERROR: unable to do variable substitution"))
-	    return
-	  end
-
-    clear_substitute_list()
-    new_name = df.get_path(output_path)..df.get_basename(output_path).."."..file_ext
-  end
-
-  dt.print_log('new_name: '..new_name)
-
-
-  -- denoise
-  if extra.denoise_enabled then
-    if extra.nind_denoise == "" then
-      dt.print(_("ERROR: nind-denoise command not configured"))
-      return
+    if img_format.extension == "tif" and img_format.bpp ~= 16 and img_format.bpp ~= 8 then
+        dt.print_log(_("ERROR: Please set TIFF bit depth to 8 or 16"))
+        dt.print(_("ERROR: Please set TIFF bit depth to 8 or 16"))
+        os.remove(temp_name)
+        return false
     end
 
-    -- output to TIFF if we will be debluring
-    local tmp_file_ext = file_ext
+    local org_temp_name = temp_name
+    local to_delete = {}
+    table.insert(to_delete, temp_name)
+
+    local denoise_name, tmp_rl_name, new_name, run_cmd, result, options
+
+    -- determine output format
+    local file_ext = img_format.extension   -- tiff only
+
+    if extra.denoise_enabled or extra.rl_deblur_enabled then
+        if extra.output_format == 1 then
+            file_ext = "jpg"
+        else
+            file_ext = "tif"
+        end
+    end
+
+    new_name = extra.output_folder .. PS .. df.get_basename(temp_name) .. "." .. file_ext
+
+    -- override output path/filename as needed
+    if extra.output_path ~= "" then
+        local output_path = extra.output_path
+        local datetime = os.date("*t")
+
+        build_substitution_list(image, img_num, datetime, USER, PICTURES, HOME, DESKTOP)
+        output_path = substitute_list(output_path)
+
+        if output_path == -1 then
+            dt.print(_("ERROR: unable to do variable substitution"))
+            return
+        end
+
+        clear_substitute_list()
+        new_name = df.get_path(output_path) .. df.get_basename(output_path) .. "." .. file_ext
+    end
+
+    dt.print_log('new_name: ' .. new_name)
+
+
+    -- denoise
+    if extra.denoise_enabled then
+        if extra.nind_denoise == "" then
+            dt.print(_("ERROR: brummer2019-denoise command not configured"))
+            return
+        end
+
+        -- output to TIFF if we will be debluring
+        local tmp_file_ext = file_ext
+        if extra.rl_deblur_enabled then
+            tmp_file_ext = 'tif'
+        end
+
+        local denoise_name = df.create_unique_filename(df.get_path(temp_name) .. PS .. df.get_basename(temp_name) .. "_denoised." .. tmp_file_ext)
+
+        -- build the denoise command string
+        dt.print(_("denoising ") .. df.get_basename(temp_name) .. " ...")
+        run_cmd = extra.nind_denoise .. " --input " .. df.sanitize_filename(temp_name) .. " --output " .. df.sanitize_filename(denoise_name)
+
+        dt.print_log(run_cmd)
+
+        result = dtsys.external_command(run_cmd)
+
+        temp_name = denoise_name
+        table.insert(to_delete, temp_name)
+
+        local f = io.open(denoise_name, "r")
+        if f ~= nil then
+            io.close(f)
+        else
+            dt.print(_("Error denoising"))
+            return false
+        end
+    end
+
+
+    -- RL deblur
     if extra.rl_deblur_enabled then
-      tmp_file_ext = 'tif'
+        if extra.gmic == "" then
+            dt.print(_("ERROR: GMic executable not configured"))
+            return false
+        end
+
+        local gmic_operation = " -deblur_richardsonlucy " .. extra.sigma_str .. "," .. extra.iterations_str .. ",1"
+
+        -- work around GMIC's long/space filename problem by renaming/moving file later
+        local tmp_rl_name = df.create_unique_filename(df.get_path(temp_name) .. PS .. df.get_basename(temp_name) .. "_rl." .. file_ext)
+        tmp_rl_name = tmp_rl_name:gsub(" ", "_")
+
+        -- build the GMic command string
+        options = " cut 0,255 round "
+
+        -- need this for 16-bit TIFF
+        if extra.denoise_enabled or (img_format.extension == "tif" and img_format.bpp == 16) then
+            options = " -/ 256 " .. options
+        end
+
+        dt.print(_("applying RL-deblur to image ") .. df.sanitize_filename(tmp_rl_name) .. " ...")
+        run_cmd = extra.gmic .. " " .. df.sanitize_filename(temp_name) .. gmic_operation ..
+                options .. " -o " .. df.sanitize_filename(tmp_rl_name) .. "," .. extra.jpg_quality_str
+
+        dt.print_log(run_cmd)
+
+        temp_name = tmp_rl_name
+        table.insert(to_delete, temp_name)
+
+        result = dtsys.external_command(run_cmd)
+        if result ~= 0 then
+            dt.print(_("Error applying RL-deblur"))
+            return false
+        end
     end
 
-    local denoise_name = df.create_unique_filename(df.get_path(temp_name)..PS..df.get_basename(temp_name).."_denoised."..tmp_file_ext)
 
-    -- build the denoise command string
-    dt.print(_("denoising ")..df.get_basename(temp_name).." ...")
-    run_cmd = extra.nind_denoise.." --input "..df.sanitize_filename(temp_name).." --output "..df.sanitize_filename(denoise_name)
+    -- copy exif
+    if extra.exiftool ~= "" then
+        dt.print(_("copying EXIF to ") .. temp_name .. " ...")
+        run_cmd = extra.exiftool .. " -writeMode cg -TagsFromFile " .. df.sanitize_filename(org_temp_name) .. " -all:all -overwrite_original " .. df.sanitize_filename(temp_name)
 
-    dt.print_log(run_cmd)
-
-    result = dtsys.external_command(run_cmd)
-
-    temp_name = denoise_name
-    table.insert(to_delete, temp_name)
-
-    local f = io.open(denoise_name, "r")
-    if f ~= nil then
-      io.close(f)
-    else
-      dt.print(_("Error denoising"))
-      return false
-    end
-  end
-
-
-  -- RL deblur
-  if extra.rl_deblur_enabled then
-    if extra.gmic == "" then
-      dt.print(_("ERROR: GMic executable not configured"))
-      return false
+        result = dtsys.external_command(run_cmd)
+        if result ~= 0 then
+            dt.print(_("error copying exif"))
+            return false
+        end
     end
 
-    local gmic_operation = " -deblur_richardsonlucy "..extra.sigma_str..","..extra.iterations_str..",1"
 
-    -- work around GMIC's long/space filename problem by renaming/moving file later
-    local tmp_rl_name = df.create_unique_filename(df.get_path(temp_name)..PS..df.get_basename(temp_name).."_rl."..file_ext)
-    tmp_rl_name = tmp_rl_name:gsub(" ", "_")
+    -- move the tmp file to final destination
+    df.mkdir(df.sanitize_filename(df.get_path(new_name)))
+    new_name = df.create_unique_filename(new_name)
+    df.file_move(temp_name, new_name)
+    dt.print(_("renamed and moved file to: ") .. new_name)
 
-    -- build the GMic command string
-    options = " cut 0,255 round "
 
-    -- need this for 16-bit TIFF
-    if extra.denoise_enabled or (img_format.extension == "tif" and img_format.bpp == 16) then
-      options = " -/ 256 "..options
+    -- delete temp image
+    for i = 1, #to_delete, 1 do
+        os.remove(to_delete[i])
     end
 
-    dt.print(_("applying RL-deblur to image ")..df.sanitize_filename(tmp_rl_name).." ...")
-    run_cmd = extra.gmic.." "..df.sanitize_filename(temp_name)..gmic_operation..
-              options.." -o "..df.sanitize_filename(tmp_rl_name)..","..extra.jpg_quality_str
-
-    dt.print_log(run_cmd)
-
-    temp_name = tmp_rl_name
-    table.insert(to_delete, temp_name)
-
-    result = dtsys.external_command(run_cmd)
-    if result ~= 0 then
-      dt.print(_("Error applying RL-deblur"))
-      return false
-    end
-  end
-
-
-  -- copy exif
-  if extra.exiftool ~= "" then
-    dt.print(_("copying EXIF to ")..temp_name.." ...")
-    run_cmd = extra.exiftool.." -writeMode cg -TagsFromFile "..df.sanitize_filename(org_temp_name).." -all:all -overwrite_original "..df.sanitize_filename(temp_name)
-
-    result = dtsys.external_command(run_cmd)
-    if result ~= 0 then
-      dt.print(_("error copying exif"))
-      return false
-    end
-  end
-
-
-  -- move the tmp file to final destination
-  df.mkdir(df.sanitize_filename(df.get_path(new_name)))
-  new_name = df.create_unique_filename(new_name)
-  df.file_move(temp_name, new_name)
-  dt.print(_("renamed and moved file to: ")..new_name)
-
-
-  -- delete temp image
-  for i=1,#to_delete,1 do
-    os.remove(to_delete[i])
-  end
-
-  dt.print(_("finished exporting image ")..new_name)
+    dt.print(_("finished exporting image ") .. new_name)
 end
 
 
 -- script_manager integration
 
 local function destroy()
-  dt.destroy_storage("exp2NRL")
+    dt.destroy_storage("exp2NRL")
 end
 
 
@@ -487,83 +509,83 @@ end
 
 
 -- new widgets ----------------------------------------------------------------
-local storage_widget = dt.new_widget("box"){
-  orientation = "vertical",
-  NDRL.output_folder_path,
-  NDRL.output_folder_selector,
-  NDRL.output_format,
-  NDRL.jpg_quality_slider,
-  NDRL.denoise_chkbox,
-  NDRL.rl_deblur_chkbox,
-  NDRL.sigma_slider,
-  NDRL.iterations_slider
+local storage_widget = dt.new_widget("box") {
+    orientation = "vertical",
+    NDRL.output_folder_path,
+    NDRL.output_folder_selector,
+    NDRL.output_format,
+    NDRL.jpg_quality_slider,
+    NDRL.denoise_chkbox,
+    NDRL.rl_deblur_chkbox,
+    NDRL.sigma_slider,
+    NDRL.iterations_slider
 }
 
 
 
 -- setup export ---------------------------------------------------------------
 local function initialize(storage, img_format, image_table, high_quality, extra)
-  -- since we cannot change the bpp, inform user
-  if img_format.extension == "tif" and img_format.bpp ~= 16 and img_format.bpp ~= 8 then
-    dt.print_log(_("ERROR: Please set TIFF bit depth to 8 or 16"))
-    dt.print(_("ERROR: Please set TIFF bit depth to 8 or 16"))
-    -- not returning {} here as that can crash darktable if user clicks the export button repeatedly
-  end
-
-  -- read parameters
-  extra.nind_denoise  = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
-  extra.gmic          = dt.preferences.read(MODULE_NAME, "gmic_exe", "string")
-  extra.gmic          = df.sanitize_filename(extra.gmic)
-  extra.exiftool      = dt.preferences.read(MODULE_NAME, "exiftool_exe", "string")
-
-
-  -- determine output path
-  extra.output_folder = NDRL.output_folder_selector.value
-  extra.output_path   = NDRL.output_folder_path.text
-  extra.output_format = NDRL.output_format.selected
-
-  extra.denoise_enabled     = NDRL.denoise_chkbox.value
-  extra.rl_deblur_enabled   = NDRL.rl_deblur_chkbox.value
-  extra.sigma_str           = string.gsub(string.format("%.2f", NDRL.sigma_slider.value), ",", ".")
-  extra.iterations_str      = string.format("%.0f", NDRL.iterations_slider.value)
-  extra.jpg_quality_str     = string.format("%.0f", NDRL.jpg_quality_slider.value)
-
-  -- since we cannot change the bpp, inform user
-  if extra.rl_deblur_enabled then
+    -- since we cannot change the bpp, inform user
     if img_format.extension == "tif" and img_format.bpp ~= 16 and img_format.bpp ~= 8 then
-      dt.print_log(_("ERROR: Please set TIFF bit depth to 8 or 16 for GMic deblur"))
-      dt.print(_("ERROR: Please set TIFF bit depth to 8 or 16"))
-      -- not returning {} here as that can crash darktable if user clicks the export button repeatedly
+        dt.print_log(_("ERROR: Please set TIFF bit depth to 8 or 16"))
+        dt.print(_("ERROR: Please set TIFF bit depth to 8 or 16"))
+        -- not returning {} here as that can crash darktable if user clicks the export button repeatedly
     end
-  end
 
-  -- save preferences
-  dt.preferences.write(MODULE_NAME, "output_path", "string", extra.output_path)
-  dt.preferences.write(MODULE_NAME, "output_format", "integer", extra.output_format)
-  dt.preferences.write(MODULE_NAME, "jpg_quality", "string", extra.jpg_quality_str)
-  dt.preferences.write(MODULE_NAME, "denoise_enabled", "bool", extra.denoise_enabled)
-  dt.preferences.write(MODULE_NAME, "rl_deblur_enabled", "bool", extra.rl_deblur_enabled)
-  dt.preferences.write(MODULE_NAME, "sigma", "string", extra.sigma_str)
-  dt.preferences.write(MODULE_NAME, "iterations", "string", extra.iterations_str)
+    -- read parameters
+    extra.nind_denoise = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
+    extra.gmic = dt.preferences.read(MODULE_NAME, "gmic_exe", "string")
+    extra.gmic = df.sanitize_filename(extra.gmic)
+    extra.exiftool = dt.preferences.read(MODULE_NAME, "exiftool_exe", "string")
+
+
+    -- determine output path
+    extra.output_folder = NDRL.output_folder_selector.value
+    extra.output_path = NDRL.output_folder_path.text
+    extra.output_format = NDRL.output_format.selected
+
+    extra.denoise_enabled = NDRL.denoise_chkbox.value
+    extra.rl_deblur_enabled = NDRL.rl_deblur_chkbox.value
+    extra.sigma_str = string.gsub(string.format("%.2f", NDRL.sigma_slider.value), ",", ".")
+    extra.iterations_str = string.format("%.0f", NDRL.iterations_slider.value)
+    extra.jpg_quality_str = string.format("%.0f", NDRL.jpg_quality_slider.value)
+
+    -- since we cannot change the bpp, inform user
+    if extra.rl_deblur_enabled then
+        if img_format.extension == "tif" and img_format.bpp ~= 16 and img_format.bpp ~= 8 then
+            dt.print_log(_("ERROR: Please set TIFF bit depth to 8 or 16 for GMic deblur"))
+            dt.print(_("ERROR: Please set TIFF bit depth to 8 or 16"))
+            -- not returning {} here as that can crash darktable if user clicks the export button repeatedly
+        end
+    end
+
+    -- save preferences
+    dt.preferences.write(MODULE_NAME, "output_path", "string", extra.output_path)
+    dt.preferences.write(MODULE_NAME, "output_format", "integer", extra.output_format)
+    dt.preferences.write(MODULE_NAME, "jpg_quality", "string", extra.jpg_quality_str)
+    dt.preferences.write(MODULE_NAME, "denoise_enabled", "bool", extra.denoise_enabled)
+    dt.preferences.write(MODULE_NAME, "rl_deblur_enabled", "bool", extra.rl_deblur_enabled)
+    dt.preferences.write(MODULE_NAME, "sigma", "string", extra.sigma_str)
+    dt.preferences.write(MODULE_NAME, "iterations", "string", extra.iterations_str)
 
 end
 
 
 -- register new storage -------------------------------------------------------
-dt.register_storage("exp2NDRL", _("nind-denoise RL"), store, nil, supported, initialize, storage_widget)
+dt.register_storage("exp2NDRL", _("brummer2019-denoise RL"), store, nil, supported, initialize, storage_widget)
 
 -- register the new preferences -----------------------------------------------
 dt.preferences.register(MODULE_NAME, "nind_denoise", "string",
-_ ("nind_denoise command (NRL)"),
-_ ("command line to execute NIND-denoise (include --model-path"), "")
+        _("nind_denoise command (NRL)"),
+        _("command line to execute NIND-denoise (include --model-path"), "")
 
 dt.preferences.register(MODULE_NAME, "gmic_exe", "file",
-_ ("GMic executable (NRL)"),
-_ ("select executable for GMic command line "), "")
+        _("GMic executable (NRL)"),
+        _("select executable for GMic command line "), "")
 
 dt.preferences.register(MODULE_NAME, "exiftool_exe", "file",
-_ ("exiftool executable (NRL)"),
-_ ("select executable for exiftool command line "), "")
+        _("exiftool executable (NRL)"),
+        _("select executable for exiftool command line "), "")
 
 -- set output_folder_path to the last used value at startup ------------------
 NDRL.output_folder_path.text = dt.preferences.read(MODULE_NAME, "output_path", "string")
