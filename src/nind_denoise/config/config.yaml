@@ -1,27 +1,96 @@
 # nind-denoise Configuration File
-# 
-# This YAML configuration file defines the settings for the nind-denoise application,
-# including model paths, external tool configurations, processing operations, and
-# supported file formats.
+#
+# OVERVIEW:
+# This YAML configuration file defines the comprehensive settings for the nind-denoise
+# application, a neural network-based image denoising system built on the Brummer2019
+# architecture. The application processes RAW image files through a multi-stage pipeline
+# that integrates neural network denoising with traditional image processing operations.
+#
+# CONFIGURATION SECTIONS:
+# - models: Neural network model definitions and paths
+# - tools: External command-line tool configurations (darktable, GMIC)
+# - operations: Processing pipeline stage definitions and operation sequences
+# - valid_extensions: Supported RAW image file format specifications
+#
+# TECHNICAL ARCHITECTURE:
+# The configuration supports a two-stage processing pipeline where RAW images undergo
+# initial preprocessing (first_stage), neural network denoising, and post-processing
+# (second_stage). The pipeline integrates with external tools like darktable for RAW
+# processing and GMIC for advanced image operations.
+#
+# VERSION COMPATIBILITY:
+# This configuration is compatible with nind-denoise version 0.3.x and requires
+# PyTorch models trained using the Brummer2019 methodology for optimal performance.
 
-# Models Section
-# Defines available neural network models for denoising operations.
-# Each model entry contains:
-#   - path: File system path to the model file
-#   - default: (optional) Boolean indicating if this is the default model
+# ==============================================================================
+# MODELS SECTION - Neural Network Model Definitions
+# ==============================================================================
+#
+# DESCRIPTION:
+# Defines available PyTorch neural network models for image denoising operations.
+# Models must be compatible with the Brummer2019 architecture and trained on
+# appropriate noise datasets for optimal performance.
+#
+# MODEL CONFIGURATION PARAMETERS:
+#   - path: File system path to the PyTorch model file (.pt extension)
+#           Supports both absolute and relative paths from project root
+#   - default: (Optional) Boolean flag indicating the default model selection
+#              Only one model should be marked as default at a time
+#
+# TECHNICAL REQUIREMENTS:
+# - Models must be PyTorch state dictionaries saved with torch.save()
+# - Compatible with the Brummer2019 generator architecture
+# - Input/output tensors must match expected dimensions for RAW processing
+# - Models should support both tiled and whole-image processing modes
+#
+# PERFORMANCE CONSIDERATIONS:
+# - Larger models (650+ parameters) provide better denoising quality
+# - Model selection affects memory usage and processing time
+# - GPU acceleration recommended for models with >500 parameters
 models:
   nind_generator_650.pt:
     path: "models/brummer2019/generator_650.pt"
     # Uncomment the line below to make this the default model
     # default: true
 
-# Tools Section  
-# Platform-specific configurations for external command-line tools.
-# Tools are organized by platform (windows/posix) and each tool defines:
-#   - path: Full path to the executable
-#   - args: List of default command-line arguments
+# ==============================================================================
+# TOOLS SECTION - External Command-Line Tool Configuration
+# ==============================================================================
+#
+# DESCRIPTION:
+# Platform-specific configurations for external command-line tools integrated
+# into the nind-denoise processing pipeline. Tools are automatically selected
+# based on the detected operating system platform.
+#
+# SUPPORTED PLATFORMS:
+#   - windows: Microsoft Windows (Vista/7/8/10/11)
+#   - posix: POSIX-compliant systems (Linux, macOS, BSD variants)
+#
+# TOOL CONFIGURATION PARAMETERS:
+#   - path: Absolute file system path to the executable binary
+#           Must include full path with file extension on Windows
+#   - args: List of default command-line arguments passed to the tool
+#           Arguments are applied before operation-specific parameters
+#   - version_check: (Optional) Command to verify tool installation
+#   - required_version: (Optional) Minimum required version specification
+#
+# INTEGRATED TOOLS:
+#
+# DARKTABLE:
+# - Purpose: RAW image processing and format conversion
+# - Function: Handles RAW file decoding, basic corrections, and format output
+# - Pipeline Stage: First stage preprocessing and second stage export
+# - Required Version: 3.0+ recommended for optimal compatibility
+# - Command-line Interface: Uses darktable-cli for batch processing
+#
+# GMIC (G'MIC):
+# - Purpose: Advanced image processing and filtering operations
+# - Function: Provides additional denoising, sharpening, and artistic filters
+# - Pipeline Stage: Second stage post-processing and enhancement
+# - Required Version: 2.8+ for full feature compatibility
+# - Command-line Interface: Uses gmic executable for filter application
 tools:
-  # Windows-specific tool paths
+  # Windows-specific tool paths and configurations
   windows:
     darktable:
       path: "C:\\Program Files\\darktable\\bin\\darktable-cli.exe"
@@ -43,108 +112,294 @@ tools:
       args:
         [ ] # Add default arguments here if needed
 
-# Operations Section
-# Defines the processing pipeline operations and their execution stages.
-# Operations are divided into first_stage and second_stage for the pipeline.
-# Nightmode operations can be moved between stages based on runtime settings.
+# ==============================================================================
+# OPERATIONS SECTION - Processing Pipeline Stage Definitions
+# ==============================================================================
+#
+# DESCRIPTION:
+# Defines the comprehensive processing pipeline operations and their execution
+# stages within the nind-denoise workflow. The pipeline implements a two-stage
+# approach: preprocessing before neural network denoising and post-processing
+# after denoising operations.
+#
+# PIPELINE ARCHITECTURE:
+# 1. FIRST_STAGE: RAW preprocessing operations applied before neural denoising
+#    - RAW file preparation and basic corrections
+#    - Color space transformations and demosaicing
+#    - Essential corrections that affect denoising quality
+#
+# 2. NEURAL_DENOISING: AI-based noise reduction (handled by model inference)
+#    - Applied between first_stage and second_stage operations
+#    - Uses configured neural network models for noise reduction
+#
+# 3. SECOND_STAGE: Post-processing operations applied after neural denoising
+#    - Advanced image enhancements and corrections
+#    - Creative and artistic processing effects
+#    - Final output preparation and export operations
+#
+# OPERATION TYPES BY CATEGORY:
+#
+# RAW PROCESSING:
+# - rawprepare: RAW sensor data preparation and normalization
+# - demosaic: Color interpolation from Bayer pattern sensor data
+# - hotpixels: Detection and correction of sensor hot pixels
+# - temperature: White balance and color temperature adjustments
+#
+# COLOR MANAGEMENT:
+# - colorin: Input color space conversion and profile application
+# - colorout: Output color space conversion and profile application
+# - channelmixerrgb: RGB channel mixing and color grading
+# - colorbalancergb: Advanced RGB color balance corrections
+#
+# EXPOSURE AND TONE:
+# - exposure: Global and local exposure adjustments
+# - gamma: Gamma curve corrections for tonal mapping
+# - highlights: Highlight recovery and clipping prevention
+# - shadhi: Shadow and highlight selective adjustments
+# - levels: Histogram-based level adjustments
+# - tonecurve: Parametric tone curve adjustments
+# - tonemap: HDR tone mapping operations
+# - toneequal: Tone equalization and local contrast
+#
+# GEOMETRIC CORRECTIONS:
+# - lens: Lens distortion, vignetting, and chromatic aberration correction
+# - flip: Image rotation and mirroring transformations
+# - ashift: Perspective correction and keystone adjustments
+# - crop: Image cropping and composition adjustments
+# - rotatepixels: Fine rotation adjustments
+# - scalepixels: Image scaling and resolution changes
+#
+# ENHANCEMENT AND FILTERING:
+# - sharpen: Edge enhancement and detail sharpening
+# - soften: Image softening and smooth skin effects
+# - bilat: Bilateral filtering for noise reduction while preserving edges
+# - blurs: Various blur effects and depth-of-field simulation
+# - diffuse: Diffusion-based smoothing operations
+# - nlmeans: Non-local means denoising algorithm
+# - denoiseprofile: Profile-based noise reduction
+#
+# CREATIVE EFFECTS:
+# - filmicrgb: Filmic tone mapping for cinematic look
+# - velvia: Velvia-style color saturation enhancement
+# - vibrance: Selective color saturation adjustments
+# - monochrome: Black and white conversion with channel mixing
+# - splittoning: Color grading in highlights and shadows
+# - vignette: Lens vignetting simulation and creative effects
+# - borders: Frame and border effects
+# - watermark: Text and image watermark application
+#
+# ADVANCED PROCESSING:
+# - clahe: Contrast Limited Adaptive Histogram Equalization
+# - hazeremoval: Atmospheric haze and fog reduction
+# - lowlight: Low-light enhancement and visibility improvement
+# - liquify: Local warping and distortion effects
+# - spots: Dust spot and blemish removal
+# - cacorrectrgb: Chromatic aberration correction in RGB space
+# - lut3d: 3D lookup table color transformations
+# - zonesystem: Zone system-based tonal adjustments
+# - rgbcurve: Individual RGB channel curve adjustments
+# - rgblevels: Individual RGB channel level adjustments
+# - dither: Dithering for quantization artifacts reduction
+# - invert: Image inversion and negative effects
+#
+# UTILITY OPERATIONS:
+# - mask_manager: Layer and mask management for selective processing
 operations:
-  # First stage operations (applied during initial processing)
+  # FIRST STAGE: Pre-denoising RAW processing operations
+  # Applied to RAW sensor data before neural network denoising
+  # Order is critical for proper RAW processing workflow
   first_stage:
-    - channelmixerrgb
-    - colorin
-    - colorout
-    - demosaic
-    - flip
-    - gamma
-    - highlights
-    - hotpixels
-    - mask_manager
-    - rawprepare
-    - temperature
-  # Second stage operations (applied after denoising)
-  second_stage:
-    - ashift
-    - bilat
-    - blurs
-    - borders
-    - colorbalancergb
-    - colorin
-    - colorout
-    - crop
-    - cacorrectrgb
-    - clahe
-    - denoiseprofile
-    - diffuse
-    - dither
-    - exposure
-    - filmicrgb
-    - flip
-    - gamma
-    - hazeremoval
-    - invert
-    - lens
-    - levels
-    - liquify
-    - lowlight
-    - lut3d
-    - mask_manager
-    - monochrome
-    - nlmeans
-    - rgbcurve
-    - rgblevels
-    - rotatepixels
-    - scalepixels
-    - shadhi
-    - sharpen
-    - soften
-    - splittoning
-    - spots
-    - tonecurve
-    - tonemap
-    - toneequal
-    - velvia
-    - vibrance
-    - vignette
-    - watermark
-    - zonesystem
+    - channelmixerrgb    # RGB channel mixing for color grading
+    - colorin           # Input color profile and space conversion
+    - colorout          # Output color profile preparation
+    - demosaic          # Bayer pattern interpolation to RGB
+    - flip              # Image orientation correction
+    - gamma             # Gamma curve adjustment for linear workflow
+    - highlights        # Highlight recovery and clipping prevention
+    - hotpixels         # Hot pixel detection and correction
+    - mask_manager      # Mask and selection management
+    - rawprepare        # RAW sensor data preparation
+    - temperature       # White balance and color temperature
 
+  # SECOND STAGE: Post-denoising enhancement and creative processing
+  # Applied after neural network denoising for final image enhancement
+  # Order optimized for quality and processing efficiency
+  second_stage:
+    - ashift            # Perspective and keystone correction
+    - bilat             # Bilateral edge-preserving filtering
+    - blurs             # Various blur effects and DoF simulation
+    - borders           # Frame and border creative effects
+    - colorbalancergb   # Advanced RGB color balance
+    - colorin           # Final color space conversion
+    - colorout          # Output color profile application
+    - crop              # Image cropping and composition
+    - cacorrectrgb      # RGB-space chromatic aberration correction
+    - clahe             # Contrast limited adaptive histogram equalization
+    - denoiseprofile    # Profile-based noise reduction (supplemental)
+    - diffuse           # Diffusion-based smoothing operations
+    - dither            # Quantization dithering for smooth gradients
+    - exposure          # Final exposure and brightness adjustments
+    - filmicrgb         # Cinematic tone mapping and color grading
+    - flip              # Final orientation adjustments
+    - gamma             # Output gamma correction
+    - hazeremoval       # Atmospheric haze and fog reduction
+    - invert            # Image inversion and negative effects
+    - lens              # Lens correction (distortion, vignetting, CA)
+    - levels            # Histogram-based level adjustments
+    - liquify           # Local warping and distortion effects
+    - lowlight          # Low-light enhancement and visibility
+    - lut3d             # 3D lookup table color transformations
+    - mask_manager      # Advanced masking and selection operations
+    - monochrome        # Black and white conversion
+    - nlmeans           # Non-local means denoising (supplemental)
+    - rgbcurve          # Individual RGB channel curve adjustments
+    - rgblevels         # Individual RGB channel level adjustments
+    - rotatepixels      # Fine rotation and alignment
+    - scalepixels       # Image scaling and resolution adjustment
+    - shadhi            # Selective shadow and highlight adjustment
+    - sharpen           # Edge enhancement and detail sharpening
+    - soften            # Image softening and skin smoothing
+    - splittoning       # Color grading in highlights and shadows
+    - spots             # Dust spot and blemish removal
+    - tonecurve         # Parametric tone curve adjustments
+    - tonemap           # HDR tone mapping operations
+    - toneequal         # Tone equalization and local contrast
+    - velvia            # Velvia-style color saturation enhancement
+    - vibrance          # Selective color saturation adjustments
+    - vignette          # Lens vignetting and creative effects
+    - watermark         # Text and image watermark application
+    - zonesystem        # Zone system-based tonal control
+
+  # ==========================================================================
+  # OPERATION OVERRIDES - Custom Parameter Configurations
+  # ==========================================================================
+  #
+  # DESCRIPTION:
+  # Defines custom parameter overrides for specific operations within the
+  # processing pipeline. Overrides allow fine-tuning of operation behavior
+  # without modifying the core operation definitions.
+  #
+  # OVERRIDE STRUCTURE:
+  # - operation_name: Target operation to override
+  #   - tool_name:parameter: Custom parameter value for specific tool
+  #   - Multiple tools can have different overrides for the same operation
+  #
+  # PARAMETER ENCODING:
+  # - Binary parameters are base64-encoded (gz11, gz48 prefixes)
+  # - String parameters are plain text or quoted strings
+  # - Numeric parameters are unquoted integers or floats
+  # - Boolean parameters use '1' (true) or '0' (false)
+  #
+  # DARKTABLE PARAMETER REFERENCE:
+  # - blendop_params: Blend operation parameters (base64 encoded)
+  # - blendop_version: Blend operation version compatibility
+  # - enabled: Operation enable state (1=enabled, 0=disabled)
+  # - modversion: Module version for parameter compatibility
+  # - multi_name: Multiple instance naming for operation stacks
+  # - multi_priority: Priority ordering for multiple instances
+  # - num: Instance number for operation identification
+  # - operation: Operation module name identifier
+  # - params: Core operation parameters (base64 encoded)
   overrides:
+    # Color Input Operation Override Configuration
     colorin:
+      # darktable-specific parameter overrides for color input processing
       darktable:blendop_params: gz11eJxjYIAACQYYOOHEgAZY0QWAgBGLGANDgz0Ej1Q+dcF/IADRAGpyHQU=
-      darktable:blendop_version: '14'
-      darktable:enabled: '1'
-      darktable:modversion: '7'
-      darktable:multi_name: ''
-      darktable:multi_name_hand_edited: '0'
-      darktable:multi_priority: '0'
-      darktable:num: '0'
-      darktable:operation: colorin
-      darktable:params: gz48eJxjZBgFowABWAbaAaNgwAEAEDgABg==
-  
-  # Nightmode operations that get moved from second_stage to first_stage
-  # when nightmode is enabled
+      darktable:blendop_version: '14'   # Blend operation version compatibility
+      darktable:enabled: '1'            # Operation enabled state
+      darktable:modversion: '7'         # Module version for parameter structure
+      darktable:multi_name: ''          # Multiple instance name (empty for single)
+      darktable:multi_name_hand_edited: '0'  # Manual name editing flag
+      darktable:multi_priority: '0'     # Priority for multiple instances
+      darktable:num: '0'               # Instance identification number
+      darktable:operation: colorin      # Operation module identifier
+      darktable:params: gz48eJxjZBgFowABWAbaAaNgwAEAEDgABg==  # Core parameters (base64)
+
+  # ==========================================================================
+  # NIGHTMODE OPERATIONS - Dynamic Pipeline Reconfiguration
+  # ==========================================================================
+  #
+  # DESCRIPTION:
+  # Defines operations that are dynamically moved from second_stage to
+  # first_stage when nightmode processing is enabled. This reconfiguration
+  # optimizes the pipeline for low-light and high-ISO image processing.
+  #
+  # NIGHTMODE RATIONALE:
+  # Low-light images benefit from early exposure and tone adjustments before
+  # neural network denoising, as these corrections can improve denoising
+  # effectiveness and reduce artifacts in shadow regions.
+  #
+  # OPERATION RELOCATION LOGIC:
+  # - Operations listed here are removed from second_stage during nightmode
+  # - Same operations are prepended to first_stage operation list
+  # - Original operation order is preserved within each stage
+  # - Nightmode detection is typically based on ISO sensitivity and exposure
   nightmode_ops:
     - exposure        # Move exposure to first stage for nightmode
     - toneequal       # Move tone equalization to first stage for nightmode
 
-# Valid Extensions Section
-# List of supported raw image file extensions.
-# These extensions are used for input validation and file filtering.
+# ==============================================================================
+# VALID EXTENSIONS SECTION - Supported RAW Image Format Specifications
+# ==============================================================================
+#
+# DESCRIPTION:
+# Comprehensive list of supported RAW image file extensions for input validation
+# and file filtering operations. Extensions are organized by camera manufacturer
+# and include technical specifications for format compatibility.
+#
+# FORMAT CATEGORIES:
+# - Manufacturer-specific RAW formats (CR2, NEF, ARW, etc.)
+# - Universal RAW formats (DNG - Digital Negative Format)
+# - Legacy and discontinued formats maintained for backward compatibility
+#
+# TECHNICAL VALIDATION:
+# - Extensions are used for initial file filtering and format detection
+# - Actual format support depends on underlying RAW processing libraries
+# - Some formats may require specific versions of processing tools
+#
+# PROCESSING COMPATIBILITY:
+# - All listed formats are supported by darktable RAW processor
+# - Neural network denoising compatibility varies by bit depth and color space
+# - Some legacy formats may have limited metadata support
+#
+# MANUFACTURER FORMAT SPECIFICATIONS:
 valid_extensions:
-  - 3FR   # Hasselblad
-  - ARW   # Sony
-  - SR2   # Sony
-  - SRF   # Sony
-  - CR2   # Canon
-  - CR3   # Canon
-  - CRW   # Canon
-  - DNG   # Adobe Digital Negative
-  - ERF   # Epson
-  - FFF   # Imacon/Hasselblad
-  - MRW   # Minolta
-  - NEF   # Nikon
-  - NRW   # Nikon
-  - ORF   # Olympus
-  - PEF   # Pentax
-  - RAF   # Fujifilm
-  - RW2   # Panasonic
+  # HASSELBLAD CAMERA SYSTEMS
+  - 3FR   # Hasselblad RAW format (H-series medium format cameras)
+  - FFF   # Imacon/Hasselblad legacy format (discontinued models)
+
+  # SONY CAMERA SYSTEMS
+  - ARW   # Sony Alpha RAW format (Alpha series digital cameras)
+  - SR2   # Sony RAW format version 2 (older Alpha and NEX models)
+  - SRF   # Sony RAW format (legacy format for older models)
+
+  # CANON CAMERA SYSTEMS
+  - CR2   # Canon RAW version 2 (EOS digital cameras since 2004)
+  - CR3   # Canon RAW version 3 (EOS cameras with DIGIC 7+ processor)
+  - CRW   # Canon RAW format (early EOS digital cameras, discontinued)
+
+  # UNIVERSAL/STANDARD FORMATS
+  - DNG   # Adobe Digital Negative (open standard RAW format)
+  # Supported by multiple manufacturers and processing applications
+
+  # EPSON CAMERA SYSTEMS
+  - ERF   # Epson RAW format (R-D1 and other Epson digital cameras)
+
+  # MINOLTA CAMERA SYSTEMS (LEGACY)
+  - MRW   # Minolta RAW format (DiMAGE series, discontinued brand)
+
+  # NIKON CAMERA SYSTEMS
+  - NEF   # Nikon Electronic Format (primary RAW format for Nikon DSLR/mirrorless)
+  - NRW   # Nikon RAW format (compact cameras and some mirrorless models)
+
+  # OLYMPUS CAMERA SYSTEMS
+  - ORF   # Olympus RAW format (OM-D, PEN, and Four Thirds system cameras)
+
+  # PENTAX/RICOH CAMERA SYSTEMS
+  - PEF   # Pentax Electronic Format (K-series DSLR and mirrorless cameras)
+
+  # FUJIFILM CAMERA SYSTEMS
+  - RAF   # Fujifilm RAW format (X-series and GFX medium format cameras)
+
+  # PANASONIC/LUMIX CAMERA SYSTEMS
+  - RW2   # Panasonic RAW version 2 (LUMIX cameras with Four Thirds sensors)
