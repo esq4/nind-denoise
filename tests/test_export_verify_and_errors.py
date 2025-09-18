@@ -9,7 +9,7 @@ def _tools_stub(tmp_path: Path):
 
 
 def test_export_verify_renames_tiff_to_requested(tmp_path, monkeypatch):
-    from nind_denoise.pipeline.export import ExportStage
+    from nind_denoise.pipeline.export import DarktableExport
     from nind_denoise.pipeline.base import JobContext
     from nind_denoise.config.config import Config
 
@@ -18,7 +18,7 @@ def test_export_verify_renames_tiff_to_requested(tmp_path, monkeypatch):
     alt_tif = tmp_path / "stage1.tif"
     alt_tif.write_bytes(b"")  # simulate darktable produced .tif instead of .tiff
 
-    stg = ExportStage(
+    stg = DarktableExport(
         tools,
         input_tif=tmp_path / "in.ARW",
         src_xmp=tmp_path / "in.ARW.xmp",
@@ -65,13 +65,13 @@ nightmode_ops: ["sharpen"]
     )
     cfg = Config(path=config_file)
     job_ctx = JobContext(input_path=tmp_path / "in.ARW", output_path=out_tiff)
-    stg.verify_with_env(cfg, job_ctx)
+    stg.execute(cfg, job_ctx)
     assert out_tiff.exists()
     assert not alt_tif.exists()
 
 
 def test_export_missing_xmp_raises(tmp_path):
-    from nind_denoise.pipeline.export import ExportStage
+    from nind_denoise.pipeline.export import DarktableExport
     from nind_denoise.pipeline.base import JobContext, StageError
     from nind_denoise.config.config import Config
 
@@ -82,7 +82,7 @@ def test_export_missing_xmp_raises(tmp_path):
     stage_xmp = tmp_path / "stage1.s1.xmp"
     out_tif = tmp_path / "stage1.tif"
 
-    stg = ExportStage(tools, input_img, src_xmp, stage_xmp, out_tif, 1)
+    stg = DarktableExport(tools, input_img, src_xmp, stage_xmp, out_tif, 1)
 
     # Create fake tool files for validation
     fake_gmic = tmp_path / "fake_gmic.exe"
@@ -123,4 +123,4 @@ nightmode_ops: ["sharpen"]
     job_ctx = JobContext(input_path=input_img, output_path=out_tif)
 
     with pytest.raises(StageError):
-        stg.execute_with_env(cfg, job_ctx)
+        stg.execute(cfg, job_ctx)

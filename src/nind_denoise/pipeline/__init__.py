@@ -7,8 +7,8 @@ from typing import Dict, Type
 # Stage types and defaults
 from .base import DenoiseOperation, ExportOperation
 from .deblur import Deblur, RLDeblur, RLDeblurPT
-from .denoise import DenoiseOptions, DenoiseStage
-from .export import ExportStage
+from .denoise import DenoiseOptions, NIND
+from .export import DarktableExport
 from .orchestrator import (
     get_output_extension,
     get_stage_filepaths,
@@ -18,8 +18,8 @@ from .orchestrator import (
 )
 
 # Simple registries (extensible)
-_EXPORTERS: Dict[str, Type[ExportOperation]] = {"darktable": ExportStage}
-_DENOISERS: Dict[str, Type[DenoiseOperation]] = {"nind_pt": DenoiseStage}
+_EXPORTERS: Dict[str, Type[ExportOperation]] = {"darktable": DarktableExport}
+_DENOISERS: Dict[str, Type[DenoiseOperation]] = {"nind_pt": NIND}
 _DEBLUR: Dict[str, Type[Deblur]] = {"gmic": RLDeblur, "pt_rl": RLDeblurPT}
 
 
@@ -52,10 +52,10 @@ __all__ = [
     "get_stage_filepaths",
     "get_output_extension",
     "resolve_output_paths",
-    "ExportStage",
+    "DarktableExport",
     "RLDeblur",
     "RLDeblurPT",
-    "DenoiseStage",
+    "NIND",
     "DenoiseOptions",
     "register_exporter",
     "get_exporter",

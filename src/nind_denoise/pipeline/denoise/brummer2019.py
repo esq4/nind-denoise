@@ -1,3 +1,4 @@
+# TODO This file still needs to be merged in to my code. It's mostly from denoise_file.py
 from __future__ import annotations
 
 import json
@@ -21,7 +22,6 @@ from nind_denoise.config.config import Config
 from nind_denoise.libs.common import np_imgops, pt_helpers, utilities
 from nind_denoise.pipeline.base import (
     DenoiseOperation,
-    JobContext,
     StageError,
 )
 
@@ -35,7 +35,7 @@ CS_UNK, UCS_UNK = 512, 448  # Unknown architecture default tile parameters
 
 
 @dataclass
-class DenoiseOptions:
+class DenoiseOptions:  # TODO this sucks
     """Configuration options for the denoising stage.
 
     This dataclass contains all the necessary parameters for configuring
@@ -62,7 +62,7 @@ class DenoiseOptions:
     batch_size: int = 1
 
 
-class DenoiseStage(DenoiseOperation):
+class NIND(DenoiseOperation):
     """Denoising pipeline stage implementing the Brummer et al. (2019) method.
 
     This class orchestrates the neural network-based image denoising process,
@@ -94,28 +94,24 @@ class DenoiseStage(DenoiseOperation):
         """
         return "Denoise"
 
-    def execute_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
-        """Execute denoise stage with type-safe Environment + JobContext.
+    def execute(self, cfg: Config) -> None:
+        """Execute denoise stage with Config carrying per-job fields.
 
         This method orchestrates the complete denoising pipeline, from loading
         configuration to producing the final denoised image.
 
         Args:
             cfg (Config): Environment containing global configuration.
-            job_ctx (JobContext): Job-specific context with input/output paths.
 
         Raises:
             StageError: If denoising fails or required resources are unavailable.
         """
-        # Input comes from JobContext
-        s1_tif = job_ctx.input_path
-        s1_denoised_tif = job_ctx.output_path
+        # Input/output now come from Config per-job fields
+        s1_tif = Path(cfg.intermediate_path or cfg.input_path)  # type: ignore[arg-type]
+        s1_denoised_tif = Path(cfg.output_path)  # type: ignore[arg-type]
 
-        # Model path comes from Environment config
-        model_config = cfg.config.get("models", {}).get("nind_generator_650.pt", {})
-        model_path = Path(
-            model_config.get("path", "models/brummer2019/generator_650.pt")
-        )
+        # Model path comes from Config-selected model
+        model_path = cfg.model_path
 
         # Create DenoiseOptions with model path
         opts = DenoiseOptions(
@@ -129,6 +125,27 @@ class DenoiseStage(DenoiseOperation):
 
         self._denoiser(opts, s1_denoised_tif, s1_tif)
 
+    def verify(self, cfg: Config) -> None:
+        """Verify that the denoising stage completed successfully.
+
+        Checks that the expected output file was created and exists on disk.
+        This verification step ensures the denoising pipeline stage completed
+        without silent failures.
+
+        Args:
+            cfg (Config): Environment containing global configuration (unused).
+
+        Raises:
+            StageError: If the expected denoised image file does not exist.
+        """
+        from pathlib import Path
+
+        s1_denoised_tif = Path(cfg.output_path)  # type: ignore[arg-type]
+
+        if not s1_denoised_tif.exists():
+            raise StageError(f"Denoise stage expected output missing: {s1_denoised_tif}")
+
+    @staticmethod
     def _denoiser(self, opts: DenoiseOptions, s1_denoised_tif: Path, s1_tif: Path):
         """Execute the core denoising algorithm using neural networks.
 
@@ -163,27 +180,6 @@ class DenoiseStage(DenoiseOperation):
         )
         run_from_args(args)
 
-    def verify_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
-        """Verify that the denoising stage completed successfully.
-
-        Checks that the expected output file was created and exists on disk.
-        This verification step ensures the denoising pipeline stage completed
-        without silent failures.
-
-        Args:
-            cfg (Config): Environment containing global configuration (unused).
-            job_ctx (JobContext): Job-specific context with output path to verify.
-
-        Raises:
-            StageError: If the expected denoised image file does not exist.
-        """
-        s1_denoised_tif = job_ctx.output_path
-
-        if not s1_denoised_tif.exists():
-            raise StageError(
-                f"Denoise stage expected output missing: {s1_denoised_tif}"
-            )
-
 
 def make_output_fpath(input_fpath, model_fpath):
     """Generate output filepath for denoised image based on input and model paths.
@@ -204,9 +200,7 @@ def make_output_fpath(input_fpath, model_fpath):
     model_fn = utilities.get_leaf(model_fpath)
     img_fn = utilities.get_leaf(input_fpath)
     os.makedirs(os.path.join(model_dpath, "test", "denoised_images"), exist_ok=True)
-    return os.path.join(
-        model_dpath, "test", "denoised_images", f"{img_fn}_{model_fn}.tif"
-    )
+    return os.path.join(model_dpath, "test", "denoised_images", f"{img_fn}_{model_fn}.tif")
 
 
 def autodetect_network_cs_ucs(args) -> None:
@@ -250,9 +244,7 @@ def autodetect_network_cs_ucs(args) -> None:
         elif args.g_network == "UtNet":
             args.cs, args.ucs = CS_UTNET, UCS_UTNET
         else:
-            print(
-                "Warning: cs and ucs not known for this architecture; values may be sub-optimal"
-            )
+            print("Warning: cs and ucs not known for this architecture; values may be sub-optimal")
             args.cs, args.ucs = CS_UNK, UCS_UNK
         print(f"cs={args.cs}, ucs={args.ucs}")
 
@@ -319,9 +311,7 @@ class OneImageDS(Dataset):
             self.size = (self.iperhl + 1) * (ipervl + 1)
             if self.pad is None or self.pad == 0:
                 self.pad = 0
-                print(
-                    "OneImageDS: Warning: you should really consider padding (cs>ucs)"
-                )
+                print("OneImageDS: Warning: you should really consider padding (cs>ucs)")
 
     def __getitem__(self, i):
         """Retrieve a single tile or the entire image with padding.
@@ -355,23 +345,17 @@ class OneImageDS(Dataset):
             ret = np.zeros((3, x1 + self.pad * 2, y1 + self.pad * 2), dtype=np.float32)
             crop = self.inimg
             # copy image to the center
-            ret[
-                :, self.pad : self.height + self.pad, self.pad : self.width + self.pad
-            ] = crop
+            ret[:, self.pad : self.height + self.pad, self.pad : self.width + self.pad] = crop
             # mirror sides
             if self.pad:
                 # left
-                ret[:, self.pad : -self.pad, : self.pad] = np.flip(
-                    crop[:, :, : self.pad], axis=2
-                )
+                ret[:, self.pad : -self.pad, : self.pad] = np.flip(crop[:, :, : self.pad], axis=2)
                 # right
                 ret[:, self.pad : -self.pad, self.width + self.pad :] = np.flip(
                     crop[:, :, self.width - self.pad :], axis=2
                 )
                 # top
-                ret[:, : self.pad, self.pad : -self.pad] = np.flip(
-                    crop[:, : self.pad, :], axis=1
-                )
+                ret[:, : self.pad, self.pad : -self.pad] = np.flip(crop[:, : self.pad, :], axis=1)
                 # bottom
                 ret[:, self.height + self.pad :, self.pad : -self.pad] = np.flip(
                     crop[:, self.height - self.pad :, :], axis=1
@@ -411,13 +395,9 @@ class OneImageDS(Dataset):
                     axis=2,
                 )
                 if y0pad > 0:  # top-left
-                    ret[:, :y0pad, :x0pad] = np.flip(
-                        self.inimg[:, :y0pad, :x0pad], axis=(1, 2)
-                    )
+                    ret[:, :y0pad, :x0pad] = np.flip(self.inimg[:, :y0pad, :x0pad], axis=(1, 2))
                 if y1pad > 0:  # bottom-left
-                    ret[:, -y1pad:, :x0pad] = np.flip(
-                        self.inimg[:, -y1pad:, :x0pad], axis=(1, 2)
-                    )
+                    ret[:, -y1pad:, :x0pad] = np.flip(self.inimg[:, -y1pad:, :x0pad], axis=(1, 2))
             if x1pad > 0:  # right
                 ret[
                     :,
@@ -428,13 +408,9 @@ class OneImageDS(Dataset):
                     axis=2,
                 )
                 if y0pad > 0:  # top-right
-                    ret[:, :y0pad, -x1pad:] = np.flip(
-                        self.inimg[:, :y0pad, -x1pad:], axis=(1, 2)
-                    )
+                    ret[:, :y0pad, -x1pad:] = np.flip(self.inimg[:, :y0pad, -x1pad:], axis=(1, 2))
                 if y1pad > 0:  # bottom-right
-                    ret[:, -y1pad:, -x1pad:] = np.flip(
-                        self.inimg[:, -y1pad:, -x1pad:], axis=(1, 2)
-                    )
+                    ret[:, -y1pad:, -x1pad:] = np.flip(self.inimg[:, -y1pad:, -x1pad:], axis=(1, 2))
             if y0pad > 0:
                 ret[:, :y0pad, x0pad : self.cs - x1pad] = np.flip(
                     self.inimg[:, y0 + y0pad : y0 + y0pad * 2, x0 + x0pad : x1 - x1pad],
@@ -535,7 +511,9 @@ def run_from_args(args):
 
     # ugly hardcoded hack for now
     if args.model_parameters is None and "activation" in args.model_path:
-        args.model_parameters = f"activation={args.model_path.split('activation')[-1].split('_')[1].split('_')[0]}"
+        args.model_parameters = (
+            f"activation={args.model_path.split('activation')[-1].split('_')[1].split('_')[0]}"
+        )
         print(f"set model_parameters to {args.model_parameters} based on model_path")
     model = Model.instantiate_model(
         network=args.g_network,
@@ -558,9 +536,7 @@ def run_from_args(args):
     DLoader = DataLoader(
         dataset=ds,
         num_workers=(
-            0
-            if args.batch_size == 1
-            else max(min(args.batch_size, os.cpu_count() // 4), 1)
+            0 if args.batch_size == 1 else max(min(args.batch_size, os.cpu_count() // 4), 1)
         ),
         drop_last=False,
         batch_size=args.batch_size,
@@ -574,10 +550,7 @@ def run_from_args(args):
     for n_count, ydat in enumerate(DLoader):
         print(str(n_count) + "/" + str(int(len(ds) / args.batch_size)))
         ybatch, usefuldims, usefulstarts = ydat
-        if (
-            args.max_subpixels is not None
-            and math.prod(ybatch.shape) > args.max_subpixels
-        ):
+        if args.max_subpixels is not None and math.prod(ybatch.shape) > args.max_subpixels:
             raise ValueError(
                 f"denoise_image: {ybatch.shape=}, {math.prod(ybatch.shape)=} > {args.max_subpixels=} for {args.input=}; aborting"
             )
@@ -702,9 +675,7 @@ def main():
         type=int,
         help="Merge crops with this much overlap (Reduces grid artifacts, may reduce sharpness between crops, costs computation time)",
     )
-    parser.add_argument(
-        "-i", "--input", default="in.jpg", type=str, help="Input image file"
-    )
+    parser.add_argument("-i", "--input", default="in.jpg", type=str, help="Input image file")
     parser.add_argument(
         "-o",
         "--output",
@@ -948,9 +919,7 @@ class Model:
                 dict([parameter.split("=") for parameter in strparameters.split(",")])
             )
         if model_path is not None:
-            path = Model.complete_path(
-                path=model_path, keyword=keyword, models_dpath=models_dpath
-            )
+            path = Model.complete_path(path=model_path, keyword=keyword, models_dpath=models_dpath)
             if path.endswith(".pth"):
                 model = torch.load(path, map_location=device)
             elif path.endswith("pt"):

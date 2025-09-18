@@ -16,6 +16,27 @@ Example:
     >>> model_path = config.model_path
 """
 
+import subprocess
+from pathlib import Path
+from typing import Optional, Sequence
+
+from nind_denoise.exceptions import SubprocessError
 from .config import Config, Tool, Tools, logger
 
-__all__ = ["Config", "Tool", "Tools", "logger"]
+
+def run_cmd(args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
+    """Run a subprocess command with robust default behavior.
+
+    - Ensures all args are converted to str
+    - Converts cwd Path to str
+    - Raises SubprocessError on failure
+    """
+    str_args = [str(a) for a in args]
+    str_cwd = str(cwd) if cwd is not None else None
+    try:
+        subprocess.run(str_args, cwd=str_cwd, check=True, text=True, capture_output=False)
+    except subprocess.CalledProcessError as exc:  # pragma: no cover - error path
+        raise SubprocessError(str(exc)) from exc
+
+
+__all__ = ["Config", "Tool", "Tools", "logger", "run_cmd", "subprocess"]

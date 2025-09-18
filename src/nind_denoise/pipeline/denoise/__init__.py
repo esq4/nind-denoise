@@ -2,26 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .brummer2019 import DenoiseOperation, DenoiseOptions, DenoiseStage
+from .brummer2019 import DenoiseOperation, DenoiseOptions, NIND
 from ..base import StageError
-
-
-class _NINDPTDenoiser:
-    """Minimal placeholder for a PyTorch-based denoiser.
-
-    For now, it simply copies the input TIFF to the output to keep the pipeline
-    operational without imposing a heavyweight dependency or runtime.
-    """
-
-    def __init__(self, options: DenoiseOptions):
-        self.options = options
-
-    def run(self, input_tif: Path, output_tif: Path) -> None:
-        output_tif.parent.mkdir(parents=True, exist_ok=True)
-        # Minimal behavior: copy input to output
-        import shutil
-
-        shutil.copy2(input_tif, output_tif)
 
 
 class DenoiseStage(DenoiseOperation):
@@ -40,12 +22,10 @@ class DenoiseStage(DenoiseOperation):
         if not self.input_tif.exists():
             raise StageError(f"Input TIFF missing for denoise: {self.input_tif}")
 
-        denoiser = _NINDPTDenoiser(self.options)
+        denoiser = NIND(self.options)
         denoiser.run(self.input_tif, self.output_tif)
         self.verify()
 
     def verify(self, ctx: Context | None = None) -> None:
         if not self.output_tif.exists():
-            raise StageError(
-                f"Denoise stage expected output missing: {self.output_tif}"
-            )
+            raise StageError(f"Denoise stage expected output missing: {self.output_tif}")

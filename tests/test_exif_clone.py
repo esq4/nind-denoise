@@ -1,8 +1,7 @@
-import sys
-from types import SimpleNamespace, ModuleType
-from pathlib import Path
 import importlib
-import builtins
+import sys
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 

@@ -2,24 +2,86 @@
 
 from __future__ import annotations
 
+import copy
+import inspect
 import logging
-from abc import ABC
-from typing import Optional
+from abc import ABC, abstractmethod
+from pathlib import Path
+from types import TracebackType
+from typing import Optional, Self, Type
 
 import numpy as np
 import torch
 from PIL import Image
 
-from ..base import JobContext, Operation, StageError
-from ...config import Tools
+from ..base import Operation, StageError
 from ...config.config import Config
 
 logger = logging.getLogger(__name__)
 
 
 class Deblur(Operation, ABC):
-    def __init__(self, tools: Optional[Tools] = None):
-        self.tools = tools
+
+    def __init__(self, cfg: Optional[Config] = None):
+        # Make an in-memory copy of cfg only when instantiating a concrete subclass
+        if cfg is not None and not inspect.isabstract(self.__class__):
+            try:
+                self.cfg = copy.deepcopy(cfg)
+            except Exception:
+                # Fallback to shallow copy; if that also fails, use original reference
+                try:
+                    self.cfg = copy.copy(cfg)
+                except Exception:
+                    self.cfg = cfg
+        else:
+            self.cfg = cfg
+
+    @abstractmethod
+    def describe(self):
+        pass
+
+    @abstractmethod
+    def execute(self, cfg: Config) -> None:
+        """Execute RL deblur with Config carrying per-job fields."""
+        pass
+
+    # Context manager support (sync)
+    def __enter__(self) -> Self:
+        # Attach the config as lightweight context for downstream helpers
+        self._ctx = self.cfg  # type: ignore[attr-defined]
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> bool:
+        # Cleanup any ephemeral context and propagate exceptions
+        if hasattr(self, "_ctx"):
+            try:
+                delattr(self, "_ctx")
+            except Exception:
+                pass
+        return False
+
+    # Async context manager support
+    async def __aenter__(self) -> Self:
+        self._ctx = self.cfg  # type: ignore[attr-defined]
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> bool:
+        if hasattr(self, "_ctx"):
+            try:
+                delattr(self, "_ctx")
+            except Exception:
+                pass
+        return False
 
 
 class RLDeblur(Deblur):
@@ -28,36 +90,36 @@ class RLDeblur(Deblur):
     def describe(self) -> str:  # pragma: no cover - description only
         return "Deblur (RL via gmic)"
 
-    def execute_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
-        """Execute RL deblur with type-safe Environment + JobContext."""
-        if not cfg.gmic:
-            raise StageError("GMIC tool not available in Environment")
+    def execute(self, cfg: Config) -> None:
+        """Execute RL deblur using only Config (with per-job fields)."""
+        # Resolve gmic path
+        gmic_tool = getattr(cfg.tools, "_gmic", None)
+        if gmic_tool is None:
+            raise StageError("GMIC tool not available in Config.tools")
 
-        input_path = job_ctx.intermediate_path or job_ctx.input_path
-        output_path = job_ctx.output_path
+        input_path = Path(cfg.intermediate_path or cfg.input_path)  # type: ignore[arg-type]
+        output_path = Path(cfg.output_path)  # type: ignore[arg-type]
 
         # Use a temporary target name to avoid issues with spaces; rename at the end
         tmp_out = output_path.with_name(output_path.stem + "__tmp.jpg")
         args = [
-            str(cfg.gmic),
+            str(gmic_tool.path),
             str(input_path.name),
             "-fx_sharpen_reinhard",
-            str(job_ctx.sigma),
-            str(job_ctx.iterations),
+            str(getattr(cfg, "sigma", 1)),
+            str(getattr(cfg, "iterations", 10)),
             "-o_jpg",
-            f"{tmp_out.name},{job_ctx.quality}",
+            f"{tmp_out.name},{getattr(cfg, 'quality', 90)}",
         ]
 
         try:
             self._run_cmd(args, cwd=output_path.parent)
         except Exception as exc:
-            logger.warning(
-                "RL-deblur failed to execute (%s); keeping exported image as-is", exc
-            )
+            logger.warning("RL-deblur failed to execute (%s); keeping exported image as-is", exc)
             return
 
         # Rename back to requested output_path (if gmic produced it)
-        tmp_path = output_dir / tmp_out.name
+        tmp_path = output_path.parent / tmp_out.name
         if tmp_path.exists():
             tmp_path.replace(output_path)
         else:
@@ -67,14 +129,13 @@ class RLDeblur(Deblur):
             )
             return
 
-        self.verify_with_env(cfg, job_ctx)
+        self.verify(cfg)
 
-    def verify_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
-        """Verify RL deblur outputs with type-safe Environment + JobContext."""
-        if not job_ctx.output_path.exists():
-            raise StageError(
-                f"Deblur stage expected output missing: {job_ctx.output_path}"
-            )
+    def verify(self, cfg: Config) -> None:
+        """Verify RL deblur outputs exist."""
+        output_path = Path(cfg.output_path)  # type: ignore[arg-type]
+        if not output_path.exists():
+            raise StageError(f"Deblur stage expected output missing: {output_path}")
 
 
 class RLDeblurPT(Deblur):
@@ -87,13 +148,13 @@ class RLDeblurPT(Deblur):
     def describe(self) -> str:
         return "Deblur (RL via PyTorch)"
 
-    def execute_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
-        """Execute PyTorch RL deblur with type-safe Environment + JobContext."""
-        input_path = job_ctx.intermediate_path or job_ctx.input_path
-        output_path = job_ctx.output_path
-        sigma = float(job_ctx.sigma)
-        iterations = job_ctx.iterations
-        quality = job_ctx.quality
+    def execute(self, cfg: Config) -> None:
+        """Execute PyTorch RL deblur using only Config (with per-job fields)."""
+        input_path = Path(cfg.intermediate_path or cfg.input_path)  # type: ignore[arg-type]
+        output_path = Path(cfg.output_path)  # type: ignore[arg-type]
+        sigma = float(getattr(cfg, "sigma", 1))
+        iterations = int(getattr(cfg, "iterations", 10))
+        quality = int(getattr(cfg, "quality", 90))
 
         if not input_path.exists():
             raise StageError(f"Stage input not found: {input_path}")
@@ -109,22 +170,18 @@ class RLDeblurPT(Deblur):
             from nind_denoise.libs.RichardsonLucyPytorch import richardson_lucy_gaussian
 
             # Run RL on torch
-            deblur = richardson_lucy_gaussian(
-                img_tensor, sigma=sigma, iterations=iterations
-            )
+            deblur = richardson_lucy_gaussian(img_tensor, sigma=sigma, iterations=iterations)
 
             # Convert back to PIL and save with quality
             if deblur.dtype == torch.uint8:
                 out_np = deblur.cpu().numpy()
             else:
-                out_np = (
-                    (deblur.clamp(0, 1) * 255.0).round().to(torch.uint8).cpu().numpy()
-                )
+                out_np = (deblur.clamp(0, 1) * 255.0).round().to(torch.uint8).cpu().numpy()
             out_img = Image.fromarray(out_np, mode="RGB")
             output_path.parent.mkdir(parents=True, exist_ok=True)
             out_img.save(output_path, quality=quality)
 
-            if cfg.verbose:
+            if getattr(cfg, "verbose", False):
                 logger.info("Applied RL-deblur (PyTorch) to: %s", output_path)
 
         except Exception as exc:
@@ -140,11 +197,10 @@ class RLDeblurPT(Deblur):
                 shutil.copy2(input_path, output_path)
             return
 
-        self.verify_with_env(cfg, job_ctx)
+        self.verify(cfg)
 
-    def verify_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
-        """Verify PyTorch RL deblur outputs with type-safe Environment + JobContext."""
-        if not job_ctx.output_path.exists():
-            raise StageError(
-                f"PyTorch RL deblur stage expected output missing: {job_ctx.output_path}"
-            )
+    def verify(self, cfg: Config) -> None:
+        """Verify PyTorch RL deblur outputs exist."""
+        output_path = Path(cfg.output_path)  # type: ignore[arg-type]
+        if not output_path.exists():
+            raise StageError(f"PyTorch RL deblur stage expected output missing: {output_path}")

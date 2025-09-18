@@ -9,6 +9,7 @@ This module provides:
 
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import platform
@@ -70,7 +71,6 @@ class Tool:
             external modifications to the internal argument list.
         """
         self._args = new_args.copy()
-        return self
 
     def append_arg(self, new_arg: str):
         """Append a single argument to the current argument list.
@@ -124,6 +124,7 @@ class Tools:
 
         for pk, platform_tools in tools_cfg.items():
             if pk == self._platform_key:
+                tool_config: dict
                 for tool_name, tool_config in platform_tools.items():
                     setattr(
                         self,
@@ -165,50 +166,78 @@ class Config:
         _model_name (str): Name of the currently selected model.
         _tools (Tools): Platform-specific collection of external tools.
         _operations (dict): Cached operations configuration.
+
+    Note:
+        This class now also carries per-job fields that previously lived in
+        JobContext. This streamlines the API so operations receive a single
+        object (Config) whose signature is a superset of the old JobContext.
     """
 
     def __init__(
         self,
-        path: Path | str = "",
+        path: "Path | str | Config" = "",
         nightmode: Optional[bool] = False,
         model: Optional[str | Path] = "",
         verbose: Optional[bool] = False,
     ):
-        """Initialize the Config instance with YAML configuration loading.
+        """Initialize the Config instance.
 
-        Args:
-            path (Path | str): Path to the YAML configuration file. If None,
-                defaults to 'config.yaml' in the same directory as this module.
-            model (Optional[str]): Name of the specific model to use. If None,
-                the default model from the configuration will be selected.
-            nightmode (Optional[bool]): Whether to enable nightmode operation
-                adjustments. This parameter is stored but currently unused in
-                the initialization process.
-            verbose (Optional[bool]): Whether to enable verbose mode.
-
-        Note:
-            The configuration file is expected to contain 'models', 'tools',
-            'operations', and 'nightmode_ops' sections. The model selection
-            logic will find the first model marked as default if no specific
-            model is provided.
+        When constructed with a path/str (or default), configuration is read from disk.
+        When constructed with another Config instance, an in-memory copy is made
+        (including dynamic attributes) without re-reading from disk.
         """
         self.verbose = verbose
         self.nightmode = nightmode
-        config_path = Path(__file__).parent / "config.yaml" if path == "" else path
-        model = model.name if type(model) == "Path" else model
-        with open(config_path, "r") as f:
-            self._config = yaml.safe_load(f)
-        if model != "":
-            self._model_name = model
+
+        if isinstance(path, Config):
+            # Clone from an existing Config instance without disk I/O
+            src = path
+            # Copy user-defined/dynamic attributes as well
+            self.__dict__.update(copy.deepcopy(src.__dict__))
         else:
-            for k, v in self._config["models"].items():
-                if v.get("default", False):
-                    self._model_name = k
-                    break
-                else:
-                    pass
-        self._tools = Tools(self._config["tools"])
-        self._operations = None
+            # Resolve config path and load YAML from disk
+            config_path = Path(__file__).parent / "config.yaml" if path == "" else Path(path)
+            self._config_path = config_path
+            # Normalize model type
+            if isinstance(model, Path):
+                model = model.name
+            with open(config_path, "r") as f:
+                self._config = yaml.safe_load(f)
+            if model != "":
+                self._model_name = model  # type: ignore[assignment]
+            else:
+                for k, v in self._config["models"].items():
+                    if v.get("default", False):
+                        self._model_name = k  # type: ignore[assignment]
+                        break
+            # Initialize tools and cache
+            self._tools = Tools(self._config["tools"])
+            self._operations = None
+
+        # -------- Per-job fields (superset of former JobContext) --------
+        # Paths are optional until a specific job is assigned
+        if not hasattr(self, "input_path"):
+            self.input_path: Optional[Path] = None
+        if not hasattr(self, "output_path"):
+            self.output_path: Optional[Path] = None
+        if not hasattr(self, "intermediate_path"):
+            self.intermediate_path: Optional[Path] = None
+        # Numeric parameters get defaults from configuration if not already set
+        if not hasattr(self, "sigma"):
+            try:
+                self.sigma: int = int(self._config.get("defaults", {}).get("sigma", self.DEFAULT_SIGMA))  # type: ignore[attr-defined]
+            except Exception:
+                self.sigma = getattr(self, "DEFAULT_SIGMA", 1)
+        if not hasattr(self, "iterations"):
+            try:
+                self.iterations: int = int(self._config.get("defaults", {}).get("iterations", self.DEFAULT_ITERATIONS))  # type: ignore[attr-defined]
+            except Exception:
+                self.iterations = getattr(self, "DEFAULT_ITERATIONS", 10)
+        if not hasattr(self, "quality"):
+            try:
+                self.quality: int = int(self._config.get("defaults", {}).get("quality", self.DEFAULT_QUALITY))  # type: ignore[attr-defined]
+            except Exception:
+                self.quality = getattr(self, "DEFAULT_QUALITY", 90)
 
     @property
     def models(self) -> Dict[str, Dict[str, str]]:
@@ -302,3 +331,49 @@ class Config:
             operations["second_stage"] = [op for op in second_stage if op not in nightmode_ops]
 
             return ops
+
+    # -------- Default stage parameter handling --------
+    # Class-level fallbacks if YAML doesn't provide defaults
+    DEFAULT_SIGMA: int = 1
+    DEFAULT_ITERATIONS: int = 10
+    DEFAULT_QUALITY: int = 90
+
+    @property
+    def sigma(self) -> int:
+        return self._config["rldblur"]["sigma"]
+
+    @property
+    def iterations(self) -> int:
+        return self._config["rldblur"]["iterations"]
+
+    @property
+    def quality(self) -> int:
+        """Default JPEG quality, overridable via YAML under defaults.quality."""
+        return self._config["export"]["quality"]
+
+    def clone_with_job(
+        self,
+        *,
+        input_path: Path,
+        output_path: Path,
+        sigma: Optional[int] = None,
+        iterations: Optional[int] = None,
+        quality: Optional[int] = None,
+        intermediate_path: Optional[Path] = None,
+    ) -> "Config":
+        """Return a cloned Config carrying the provided per-job fields.
+
+        Any of sigma/iterations/quality left as None will keep the current values
+        from this Config (which already default from YAML if not set).
+        """
+        new_cfg = Config(self)
+        new_cfg.input_path = input_path
+        new_cfg.output_path = output_path
+        new_cfg.intermediate_path = intermediate_path
+        if sigma is not None:
+            new_cfg.sigma = sigma
+        if iterations is not None:
+            new_cfg.iterations = iterations
+        if quality is not None:
+            new_cfg.quality = quality
+        return new_cfg

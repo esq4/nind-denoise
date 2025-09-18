@@ -6,23 +6,15 @@ import copy
 import logging
 import pathlib
 from pathlib import Path
-from typing import Optional
+from typing import Any, AsyncGenerator, Optional
 
 import exiv2
 from bs4 import BeautifulSoup
 
-from .base import JobContext
-from .deblur import RLDeblur
-from .denoise import DenoiseOptions, DenoiseStage
-from .export import ExportStage
-from ..config.config import Config
+import nind_denoise.config
+from nind_denoise.pipeline.base import Operation, OperationsFactory
 
 logger = logging.getLogger(__name__)
-
-# Defaults
-DEFAULT_JPEG_QUALITY = 90
-DEFAULT_RL_SIGMA = 1
-DEFAULT_RL_ITERATIONS = 10
 
 
 def get_output_extension(args: dict) -> str:
@@ -57,23 +49,8 @@ def validate_input_file(input_path: pathlib.Path) -> None:
     good_xmp = input_xmp.exists() and input_xmp.is_file()
 
     if not (good_file and good_xmp):
-        logger.error(
-            "The input raw-image and its XMP were not found, or are not valid."
-        )
+        logger.error("The input raw-image and its XMP were not found, or are not valid.")
         raise FileNotFoundError(str(input_path))
-
-
-def download_model_if_needed(model_path: pathlib.Path) -> None:
-    """Download the model file if it does not exist."""
-    from torch import hub
-
-    if not model_path.exists():
-        logger.info("Downloading denoiser model to %s", model_path)
-        model_path.parent.mkdir(parents=True, exist_ok=True)
-        hub.download_url_to_file(
-            "https://f005.backblazeb2.com/file/modelzoo/nind/generator_650.pt",
-            str(model_path),
-        )
 
 
 def resolve_unique_output_path(outpath: pathlib.Path) -> pathlib.Path:
@@ -83,11 +60,61 @@ def resolve_unique_output_path(outpath: pathlib.Path) -> pathlib.Path:
         outpath = outpath.with_stem(outpath.stem + "_" + str(i))
         i += 1
         if i >= 99:
-            logger.error(
-                "Too many files with the same name already exist in %s", outpath.parent
-            )
+            logger.error("Too many files with the same name already exist in %s", outpath.parent)
             raise FileExistsError(str(outpath.parent))
     return outpath
+
+
+class Pipe:
+    """A better design for run_pipeline. This should take in `_args`, whether they be sourced from the cli,
+    from configuration files, via API or whatever; those `_args` should contain the information needed to yield a
+    list of Operations (resolve_operations_list() or similar).
+    """
+
+    def __init__(self, _args):
+        self.stage: int = 0
+        self.image = _args.get("input")  # probably would be better to make this a modular connector
+        self.cfg = nind_denoise.config.Config()
+        self.stages = _args.get("stages")
+        self.verbose = _args.get("verbose")
+        self.debug = _args.get("debug")
+
+    async def _filter(self, op: Operation) -> AsyncGenerator[Any, Any]:
+        """
+        Perform asynchronous filtering operation on an image using a given operation.
+
+        :param img: The input image to be processed.
+        :type img: object
+        :param op: An instance of :class:`nind_denoise.pipeline.base.Operation` which defines the filtering operation to be applied on the image.
+        :type op: nind_denoise.pipeline.base.Operation
+        :return: Yields the result of the operation asynchronously.
+        :rtype: AsyncGenerator[Any, Any]
+
+        """
+        async with op:
+            # We want this to be asynchronous s.t. we don't have to wait for file operations to finish, for example.
+            # If it were possible to just yoink the output from memory, anyway. Which might be hard.
+            op.execute(self.cfg)
+            yield op.output
+
+            yield op.execute(self.cfg)
+
+    @property
+    async def processed(self):
+        async for operation in OperationsFactory(self.stages):
+            # This intentionally blocks on completion of each stage
+            witself._img = await filter(self._img)
+            self.stage += 1
+            if self.debug:
+                # retain intermediates
+                setattr(self, "_img", "stage %d" % self.stage)
+                if self.verbose:
+                    print("Completed Stage %d" % self.stage)
+        return self._img
+
+    def run(self):
+        # initializing models themselves can be time-consuming, so you should be able to
+        return self.processed
 
 
 def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
@@ -110,9 +137,7 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
     quality = int(_args.get("--quality", DEFAULT_JPEG_QUALITY))
     iterations = int(_args.get("--iterations", DEFAULT_RL_ITERATIONS))
 
-    stage_one_output_filepath, stage_one_denoised_filepath = get_stage_filepaths(
-        outpath, 1
-    )
+    stage_one_output_filepath, stage_one_denoised_filepath = get_stage_filepaths(outpath, 1)
     stage_two_output_filepath = get_stage_filepaths(outpath, 2)
 
     cfg = Config()
@@ -136,21 +161,14 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
     # Stage 1 export (32-bit TIFF) - using new Environment + JobContext pattern
     input_xmp = _input_path.with_suffix(_input_path.suffix + ".xmp")
     s1_xmp = stage_one_output_filepath.with_suffix(".s1.xmp")
-    s1_job_ctx = JobContext(
-        input_path=_input_path,
-        output_path=stage_one_output_filepath,
-        sigma=sigma,
-        iterations=iterations,
-        quality=quality,
-    )
-    ExportStage(
-        tools,
+
+    DarktableExport(
         _input_path,
         input_xmp,
         s1_xmp,
         stage_one_output_filepath,
         1,
-    ).execute_with_env(environment, s1_job_ctx)
+    ).execute(environment, s1_job_ctx)
 
     model_config = cfg["models"]["nind_generator_650.pt"]
     model_path = pathlib.Path(model_config["path"])
@@ -164,11 +182,11 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
         iterations=iterations,
         quality=quality,
     )
-    DenoiseStage(
+    NIND(
         stage_one_output_filepath,
         stage_one_denoised_filepath,
         DenoiseOptions(model_path=model_path, overlap=6, batch_size=1),
-    ).execute_with_env(environment, denoise_job_ctx)
+    ).execute(environment, denoise_job_ctx)
 
     clone_exif(_input_path, stage_one_denoised_filepath)
 
@@ -181,14 +199,14 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
         iterations=iterations,
         quality=quality,
     )
-    ExportStage(
+    DarktableExport(
         tools,
         stage_one_denoised_filepath,
         input_xmp,
         xmp2_dst,
         stage_two_output_filepath,
         2,
-    ).execute_with_env(environment, s2_job_ctx)
+    ).execute(environment, s2_job_ctx)
 
     # Deblur stage
     if rldeblur_enabled:
@@ -200,7 +218,7 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
             quality=quality,
             intermediate_path=stage_two_output_filepath,
         )
-        RLDeblur().execute_with_env(environment, deblur_job_ctx)
+        RLDeblur().execute(environment, deblur_job_ctx)
 
     clone_exif(stage_one_output_filepath, outpath, verbose=verbose)
 
@@ -258,9 +276,7 @@ def build_xmp(xmp_text: str, stage: int, *, verbose: bool = False) -> str:
                 if verbose:
                     logger.debug("--removed: %s", op["darktable:operation"])
             elif op["darktable:operation"] in operations.get("overrides", {}):
-                for key, val in operations["overrides"][
-                    op["darktable:operation"]
-                ].items():
+                for key, val in operations["overrides"][op["darktable:operation"]].items():
                     op[key] = val
             if verbose:
                 logger.debug(

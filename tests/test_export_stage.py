@@ -25,7 +25,7 @@ def _tools_stub(tmp_path: Path):
 
 
 def test_export_stage_stage1_builds_cmd(monkeypatch, tmp_path):
-    from nind_denoise.pipeline.export import ExportStage
+    from nind_denoise.pipeline.export import DarktableExport
     from nind_denoise.pipeline.base import JobContext
     from nind_denoise.config.config import Config
 
@@ -47,15 +47,15 @@ def test_export_stage_stage1_builds_cmd(monkeypatch, tmp_path):
         # Do not actually run anything
 
     # Avoid verify failing since we don't produce real outputs
-    monkeypatch.setattr(ExportStage, "_run_cmd", fake_run_cmd, raising=True)
+    monkeypatch.setattr(DarktableExport, "_run_cmd", fake_run_cmd, raising=True)
     monkeypatch.setattr(
-        ExportStage,
+        DarktableExport,
         "verify_with_env",
         lambda self, cfg, job_ctx: None,
         raising=True,
     )
 
-    stg = ExportStage(tools, input_img, src_xmp, stage_xmp, out_tif, 1)
+    stg = DarktableExport(tools, input_img, src_xmp, stage_xmp, out_tif, 1)
 
     # Create fake tool files for validation
     fake_gmic = tmp_path / "fake_gmic.exe"
@@ -95,7 +95,7 @@ nightmode_ops: ["sharpen"]
     )
     cfg = Config(path=config_file, verbose=True)
     job_ctx = JobContext(input_path=input_img, output_path=out_tif)
-    stg.execute_with_env(cfg, job_ctx)
+    stg.execute(cfg, job_ctx)
 
     # Assert command args
     args = captured["args"]
@@ -109,7 +109,7 @@ nightmode_ops: ["sharpen"]
 
 
 def test_export_stage_stage2_builds_cmd(monkeypatch, tmp_path):
-    from nind_denoise.pipeline.export import ExportStage
+    from nind_denoise.pipeline.export import DarktableExport
     from nind_denoise.pipeline.base import JobContext
     from nind_denoise.config.config import Config
 
@@ -129,15 +129,15 @@ def test_export_stage_stage2_builds_cmd(monkeypatch, tmp_path):
         captured["args"] = [str(a) for a in args]
         captured["cwd"] = str(cwd) if cwd is not None else None
 
-    monkeypatch.setattr(ExportStage, "_run_cmd", fake_run_cmd, raising=True)
+    monkeypatch.setattr(DarktableExport, "_run_cmd", fake_run_cmd, raising=True)
     monkeypatch.setattr(
-        ExportStage,
+        DarktableExport,
         "verify_with_env",
         lambda self, cfg, job_ctx: None,
         raising=True,
     )
 
-    stg = ExportStage(tools, input_img, src_xmp, stage_xmp, out_tif, 2)
+    stg = DarktableExport(tools, input_img, src_xmp, stage_xmp, out_tif, 2)
 
     # Create fake tool files for validation
     fake_gmic = tmp_path / "fake_gmic.exe"
@@ -177,7 +177,7 @@ nightmode_ops: ["sharpen"]
     )
     cfg = Config(path=config_file, verbose=False)
     job_ctx = JobContext(input_path=input_img, output_path=out_tif)
-    stg.execute_with_env(cfg, job_ctx)
+    stg.execute(cfg, job_ctx)
 
     args = captured["args"]
     # TIFF bpp should be 16 for stage 2

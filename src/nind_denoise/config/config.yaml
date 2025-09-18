@@ -25,23 +25,18 @@ tools:
   windows:
     darktable:
       path: "C:\\Program Files\\darktable\\bin\\darktable-cli.exe"
-      args:
-        [ ] # Add default arguments here if needed
+      args: "[]"# Add arguments to pass here if needed
     gmic:
       path: "C:\\Program Files\\gmic-cli\\gmic.exe"
-      args:
-        [ ] # Add default arguments here if needed
-
-  # POSIX (Linux/macOS) tool paths  
+      args: "[]"# Add arguments to pass here if needed
+  # POSIX (Linux/macOS) tool paths
   posix:
     darktable:
       path: "/usr/bin/darktable-cli"
-      args:
-        [ ] # Add default arguments here if needed
+      args: "[]"# Add arguments to pass here if needed
     gmic:
       path: "/usr/bin/gmic"
-      args:
-        [ ] # Add default arguments here if needed
+      args: "[]"# Add arguments to pass here if needed
 
 # Operations Section
 # Defines the processing pipeline operations and their execution stages.
@@ -148,3 +143,9 @@ valid_extensions:
   - PEF   # Pentax
   - RAF   # Fujifilm
   - RW2   # Panasonic
+export:
+  - outpath = ""
+  - jpeg_quality: "90"
+rldeblur:
+  sigma: "1"
+  iterations: "10"

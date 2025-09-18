@@ -4,65 +4,94 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import AsyncIterator, Optional, Sequence, Type
 
-from nind_denoise.config import Config  # type: ignore[reportMissingImports]
 from nind_denoise.config.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class JobContext:
-    """Per-stage job context with typed, required fields for stage execution.
+class OperationsFactory:
+    """
+    Async-iterable factory that resolves stage names to concrete Operation classes.
 
-    This contains the mutable state specific to each pipeline stage execution,
-    with non-optional fields to ensure type safety.
+    Parameters:
+        stages: Ordered sequence of stage identifiers to resolve (e.g. ["darktable", "nind_pt", "gmic"]).
+        op_name: Operation category to resolve for each stage. One of: "exporter", "denoiser", "deblur".
+
+    Yields:
+        Type[Operation]: For each stage in `stages`, the registered Operation class for the selected category.
+
+    Usage:
+        async for Op in OperationsFactory(stages, "denoiser"):
+            # `Op` is a class (subclass of Operation); instantiate or inspect as needed
+            ...
+
+    Notes:
+        - Resolution is performed lazily during iteration via the package registries.
+        - A ValueError is raised if an unknown `op_name` is provided.
+        - A KeyError may be raised if a given stage name is not registered for the chosen category.
     """
 
-    # Input/output paths (required)
-    input_path: Path
-    output_path: Path
+    def __init__(self, stages: Sequence[str], op_name: str):
+        self.stages = stages
+        self.op_name = op_name  # one of: "exporter", "denoiser", "deblur"
 
-    # Stage-specific processing parameters
-    sigma: int = 1
-    iterations: int = 10
-    quality: int = 90
+    def __aiter__(self) -> AsyncIterator[Type["Operation"]]:
+        """
+        Return an async iterator over Operation classes for the configured category.
 
-    # Optional stage-specific paths
-    intermediate_path: Optional[Path] = None
+        Iterates over `self.stages` in order and yields the class registered for each
+        stage under the selected `op_name` category.
 
+        Raises:
+            ValueError: If `op_name` is not one of the supported categories.
+            KeyError: If a stage name is not registered for the chosen category.
+        """
 
-class StageError(Exception):
-    pass
+        async def _gen() -> AsyncIterator[Type["Operation"]]:
+            # Lazy import to avoid circular imports at module import time
+            from nind_denoise.pipeline import get_exporter, get_denoiser, get_deblur
+
+            resolvers = {
+                "exporter": get_exporter,
+                "denoiser": get_denoiser,
+                "deblur": get_deblur,
+            }
+            resolver = resolvers.get(self.op_name)
+            if resolver is None:
+                raise ValueError(f"Unknown operation type: {self.op_name}")
+
+            for stage in self.stages:
+                yield resolver(stage)
+
+        return _gen()
 
 
 class Operation(ABC):
     """Abstract base for all operations (export, denoise, deblur)."""
+
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def get_result(self):
+        pass
 
     @abstractmethod
     def describe(self) -> str:  # pragma: no cover - description only
         ...
 
     @abstractmethod
-    def execute_with_env(
-        self, cfg: Config, job_ctx: JobContext
-    ) -> None:  # pragma: no cover
-        """Execute operation with Environment + JobContext pattern."""
+    def execute(self, cfg: Config) -> None:  # pragma: no cover
+        """Execute operation with Config."""
         ...
 
     @abstractmethod
-    def verify_with_env(
-        self, cfg: Config, job_ctx: JobContext
-    ) -> None:  # pragma: no cover
-        """Verify operation outputs with Environment + JobContext pattern.
-        Implementations should raise StageError on failure.
-        """
+    def verify(self, cfg: Config) -> None:  # pragma: no cover
+        """Verify operation outputs. Implementations should raise StageError on failure."""
         ...
-
-    # Shared helpers usable by all operations
 
     def _prepare_output_file(self, path: Path) -> None:
         """Ensure the output directory exists and remove any pre-existing file.
@@ -78,12 +107,6 @@ class Operation(ABC):
         except Exception:  # pragma: no cover - defensive
             pass
 
-
-class ExportOperation(Operation, ABC):
-
-    def __init__(self, cfg: Config):
-        self.cfg = cfg
-
     def write_xmp_file(
         self, src_xmp: Path, dst_xmp: Path, stage: int, *, verbose: bool = False
     ) -> None:
@@ -94,23 +117,57 @@ class ExportOperation(Operation, ABC):
 
         _write_xmp_file(src_xmp, dst_xmp, stage, verbose=verbose)
 
-    def _run_cmd(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
-        from . import (
-            run_cmd as _run_cmd_shared,
-        )  # Defer import to avoid circular dependency during import time
 
-        if hasattr(self, "_ctx") and self._ctx.verbose:  # type: ignore[attr-defined]
-            logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
-        _run_cmd_shared(args, cwd=cwd)
+class ExportOperation(Operation, ABC):
+
+    @abstractmethod
+    def get_result(self):
+        pass
+
+    def execute(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
+        """
+        Execute a command with the given arguments and working directory.
+
+        :param args: The sequence of arguments to be passed to the command.
+                     Each argument can be a string or a path object.
+        :type args: Sequence[str | Path]
+
+        :param cwd: The working directory for the command. If not provided,
+                   the current working directory is used.
+        :type cwd: Optional[Path]
+
+        :return: This method does not return any value.
+        :rtype: None
+
+        .. note::
+
+           If the verbose mode is enabled in the context, it logs the command
+           being executed.
+
+        .. warning::
+
+           Ensure that the provided arguments and working directory are valid;
+           otherwise, the command execution may fail.
+
+        .. seealso::
+
+           The `self._ctx.run_cmd` method for executing commands.
+        """
+        if hasattr(self, "_ctx"):
+            if getattr(self._ctx, "verbose", False):  # type: ignore[attr-defined]
+                logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
+            self._ctx.run_cmd(args, cwd=cwd)
 
 
 class DenoiseOperation(Operation, ABC):
 
     def _run_cmd(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
-        from . import (
-            run_cmd as _run_cmd_shared,
-        )  # Defer import to avoid circular dependency during import time
+        from nind_denoise import config as _config
 
-        if hasattr(self, "_ctx") and self._ctx.verbose:  # type: ignore[attr-defined]
+        if hasattr(self, "_ctx") and getattr(self._ctx, "verbose", False):  # type: ignore[attr-defined]
             logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
-        _run_cmd_shared(args, cwd=cwd)
+        _config.run_cmd(args, cwd=cwd)
+
+
+class StageError(Exception):
+    pass

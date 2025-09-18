@@ -48,6 +48,7 @@ dependencies = [
     "torchaudio~=2.8.0",
     "torchvision~=0.23.0",
     "traitlets~=5.14.3",
+    "trio>=0.31.0",
     "typer>=0.17.4",
     "typing-extensions>=4.14.1",
     "wcwidth~=0.2.13",

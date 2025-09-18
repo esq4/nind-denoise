@@ -40,10 +40,10 @@ def test_deblur_registry_extensibility():
         def describe(self) -> str:
             return "Custom Deblur"
 
-        def execute_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
+        def execute(self, cfg: Config, job_ctx: JobContext) -> None:
             pass
 
-        def verify_with_env(self, cfg: Config, job_ctx: JobContext) -> None:
+        def execute(self, cfg: Config, job_ctx: JobContext) -> None:
             pass
 
     # Register custom deblur
