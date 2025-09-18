@@ -4,8 +4,10 @@ version = "0.3.1"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["asttokens~=3.0.0",
+dependencies = [
+    "asttokens~=3.0.0",
     "beautifulsoup4~=4.13.4",
+    "black>=25.1.0",
     "bs4~=0.0.2",
     "configargparse~=1.7.1",
     "decorator~=5.2.1",
@@ -46,14 +48,16 @@ dependencies = ["asttokens~=3.0.0",
     "torchaudio~=2.8.0",
     "torchvision~=0.23.0",
     "traitlets~=5.14.3",
+    "typer>=0.17.4",
     "typing-extensions>=4.14.1",
     "wcwidth~=0.2.13",
 ]
 
 [dependency-groups]
-test = ["pylint>=3.3.8",
+test = [
+    "pylint>=3.3.8",
     "pytest>=8.4.2",
-    "nind-denoise",
+    #    "nind-denoise",
     "pytest-cov>=7.0.0",
 ]
 
