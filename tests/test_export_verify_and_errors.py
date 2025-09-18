@@ -28,7 +28,6 @@ def test_export_verify_renames_tiff_to_requested(tmp_path, monkeypatch):
     )
 
     # Directly call verify to test rename behavior without running any command
-<<<<<<< HEAD
     # Create fake tool files for validation
     fake_gmic = tmp_path / "fake_gmic.exe"
     fake_dt = tmp_path / "fake_dt.exe"
@@ -66,12 +65,6 @@ nightmode_ops: ["sharpen"]
     )
     cfg = Config(path=config_file)
     job_ctx = JobContext(input_path=tmp_path / "in.ARW", output_path=out_tiff)
-=======
-    cfg = Config(tools=tools, config={})
-    job_ctx = JobContext(
-        input_path=tmp_path / "in.ARW", output_path=out_tiff, output_dir=tmp_path
-    )
->>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
     stg.verify_with_env(cfg, job_ctx)
     assert out_tiff.exists()
     assert not alt_tif.exists()
@@ -91,7 +84,6 @@ def test_export_missing_xmp_raises(tmp_path):
 
     stg = ExportStage(tools, input_img, src_xmp, stage_xmp, out_tif, 1)
 
-<<<<<<< HEAD
     # Create fake tool files for validation
     fake_gmic = tmp_path / "fake_gmic.exe"
     fake_dt = tmp_path / "fake_dt.exe"
@@ -129,10 +121,6 @@ nightmode_ops: ["sharpen"]
     )
     cfg = Config(path=config_file)
     job_ctx = JobContext(input_path=input_img, output_path=out_tif)
-=======
-    cfg = Config(tools=tools, config={})
-    job_ctx = JobContext(input_path=input_img, output_path=out_tif, output_dir=tmp_path)
->>>>>>> a5fd5d04ba398e54626a0e75a9f92231aba11882
 
     with pytest.raises(StageError):
         stg.execute_with_env(cfg, job_ctx)
