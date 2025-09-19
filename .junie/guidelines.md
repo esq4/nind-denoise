@@ -14,7 +14,7 @@ This document captures project-specific build, configuration, testing, and devel
     - requirements.in is curated to resolve platform-appropriate wheels (notably for torch and friends). If you are not using uv, you can use pip install -r requirements.in, but uv will generally resolve variants more reliably across GPU/CPU setups.
   - External binaries required by the pipeline (runtime, not for unit tests):
     - darktable-cli (Darktable) — used twice for stage 1/2 exports.
-    - gmic (gmic-cli) — used for RL deblur stage.
+    - gmic (gmic-cli) — used for traditional RL deblur stage (optional, can use PyTorch implementation instead).
     - exiv2 (Python bindings) — used to read/write EXIF metadata.
   - The CLI attempts to auto-locate darktable-cli and gmic, but you can override with --dt and --gmic. On Windows, ensure these tools are discoverable on PATH or provide absolute paths.
 
