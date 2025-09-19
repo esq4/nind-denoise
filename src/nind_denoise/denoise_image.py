@@ -15,13 +15,13 @@ egrun:
         TODO
 '''
 
-import math
 import os
 import time
 
 import configargparse
 import cv2
 import exiv2
+import math
 import torch
 import torchvision
 from torch.utils.data import DataLoader, Dataset
@@ -31,11 +31,9 @@ try:
 except ImportError:
     pass
 import numpy as np
-import sys
-sys.path.append('..')
-from common.libs import np_imgops, pt_helpers, utilities
+from nind_denoise.common.libs import np_imgops, pt_helpers, utilities
 #from nn_common import Model
-import nn_common
+from nind_denoise import nn_common
 
 CS_UNET, UCS_UNET = 440, 320
 CS_UTNET, UCS_UTNET = 504, 480

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import pathlib
+
 import typer
 
 logger = logging.getLogger(__name__)
@@ -87,15 +88,6 @@ def cli(
     }
 
     from nind_denoise.pipeline import run_pipeline
-
-        _pth = pathlib.Path(__file__).resolve().parent / "nind_denoise" / "pipeline.py"
-        _ldr = _ilm.SourceFileLoader("pipeline_local", str(_pth))
-        _spec = _ilu.spec_from_loader(_ldr.name, _ldr)
-        _mod = _ilu.module_from_spec(_spec)
-        import sys as _sys
-        _sys.modules[_ldr.name] = _mod
-        _ldr.exec_module(_mod)
-        run_pipeline = _mod.run_pipeline  # type: ignore
 
     if raw_image.is_dir():
         for file in raw_image.iterdir():

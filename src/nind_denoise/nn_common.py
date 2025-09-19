@@ -1,51 +1,54 @@
 import json
-import math
 # from networks.p2p_networks import define_D
 import os
-import sys
 import time
 from enum import Enum
 
+import math
 import torch
 import torchvision
 import yaml
-from networks.UtNet import UtNet # needed for globals()
+
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 #from nind_denoise.lib import pytorch_ssim
 #from nind_denoise.networks.MIRNet import MIRNet (huge VRAM, bs=2, nope?)
 
 try:
-    from common.libs import pt_losses
+    from nind_denoise.common.libs import pt_losses
 except ModuleNotFoundError as e:
     print(f'nn_common: import error, (MS-)SSIM loss is not available without the piqa library ({e})')
 
 COMMON_CONFIG_FPATH = os.path.join('configs', 'common_conf_default.yaml')
 # FIXME: losses
 
-# default_values = {
-#     'g_network': 'UNet',
-#     'd_network': None,
-#     'd2_network': None,
-#     'train_data': [os.path.join('..', '..', 'datasets', 'cropped', 'NIND_256_192')],
-#     'models_dpath': os.path.join('..', '..', 'models', 'nind_denoise'),
-#     'beta1': 0.5,
-#     #'weight_SSIM': 0.2,
-#     #'weight_L1': 0.05,
-#     'lr': 0.0003,
-#     'test_reserve_yaml': os.path.join('configs', 'test_set_nind.yaml'),
-#     'validation_set_yaml': os.path.join('configs', 'validation_set_30_NIND_256_192_test_set_nind.yaml'),
-#     'patience': 3,
-#     'weights': {
-#         'SSIM': 0.,
-#         'L1': 0.,
-#         'MSE': 0.,
-#         'MSSSIM': 1.,
-#         'D1': 0.,
-#         'D2': 0.
-#     }
-# }
-# with open(default_values['test_reserve_yaml'], 'r') as fp:
-#     default_values['test_reserve'] = yaml.safe_load(fp)
+default_values = {
+    'g_network': 'UNet',
+    'd_network': None,
+    'd2_network': None,
+    'train_data': [os.path.join('..', '..', 'datasets', 'cropped', 'NIND_256_192')],
+    'models_dpath': os.path.join('..', '..', 'models', 'nind_denoise'),
+    'beta1': 0.5,
+    # 'weight_SSIM': 0.2,
+    # 'weight_L1': 0.05,
+    'lr': 0.0003,
+    'test_reserve_yaml': os.path.join('configs', 'test_set_nind.yaml'),
+    'validation_set_yaml': os.path.join('configs', 'validation_set_30_NIND_256_192_test_set_nind.yaml'),
+    'patience': 3,
+    'weights': {
+        'SSIM': 0.,
+        'L1': 0.,
+        'MSE': 0.,
+        'MSSSIM': 1.,
+        'D1': 0.,
+        'D2': 0.
+    }
+}
+# Try to load test_reserve from YAML, but handle if file is missing
+try:
+    with open(default_values['test_reserve_yaml'], 'r') as fp:
+        default_values['test_reserve'] = yaml.safe_load(fp)
+except FileNotFoundError:
+    default_values['test_reserve'] = []
 
 class DebugOptions(Enum):
     SHORT_RUN = 'short_run'

@@ -21,6 +21,6 @@ tools:
   windows:
     darktable: "C:\\Program Files\\darktable\\bin\\darktable-cli.exe"
     gmic: "~\\gmic-3.6.1-cli-win64\\gmic.exe"
-  posix:
+  linux:
     darktable: "/usr/bin/darktable-cli"
     gmic: "/usr/bin/gmic"

@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import io
 import logging
+import os
 import pathlib
 import shutil
 import subprocess
@@ -17,11 +18,12 @@ from dataclasses import dataclass
 from typing import Iterable
 
 import exiv2
-import yaml
-from bs4 import BeautifulSoup
-from PIL import Image
 import numpy as np
 import torch
+import yaml
+from PIL import Image
+from bs4 import BeautifulSoup
+
 from nind_denoise.rl_pt import richardson_lucy_gaussian
 
 logger = logging.getLogger(__name__)
@@ -31,19 +33,8 @@ DEFAULT_JPEG_QUALITY = 90
 DEFAULT_RL_SIGMA = 1
 DEFAULT_RL_ITERATIONS = 10
 
-
-def _load_cli_config(path: str | None = None) -> dict:
-    cfg_path = pathlib.Path(path or "src/config/cli.yaml")
-    if cfg_path.is_file():
-        try:
-            with io.open(cfg_path, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f) or {}
-        except Exception:
-            return {}
-    return {}
-
-
-_cli_cfg = _load_cli_config()
+with io.open(pathlib.Path("src/config/cli.yaml"), "r", encoding="utf-8") as f:
+    _cli_cfg = yaml.safe_load(f)
 _default_exts = [
     "3FR",
     "ARW",
@@ -162,7 +153,7 @@ class RLDeblurPT(DeblurStage):
             out_np = deblur.cpu().numpy()
         else:
             out_np = (deblur.clamp(0, 1) * 255.0).round().to(torch.uint8).cpu().numpy()
-        out_img = Image.fromarray(out_np, mode="RGB")
+        out_img = Image.fromarray(out_np)
         outpath.parent.mkdir(parents=True, exist_ok=True)
         out_img.save(outpath, quality=quality)
 
@@ -273,8 +264,9 @@ def get_stage_filepaths(outpath: pathlib.Path, stage: int):
 
 
 def get_command_paths(_args: dict):
-    cmd_darktable = _args.get("--dt") or _cli_cfg.get("darktable_cli", "darktable-cli")
-    cmd_gmic = _args.get("--gmic") or _cli_cfg.get("gmic", "gmic")
+    platform = {"nt": "windows", "posix": "linux", "darwin": "macos"}
+    cmd_darktable = _args.get("--dt") or _cli_cfg["tools"][platform[os.name]]["darktable"]
+    cmd_gmic = _args.get("--gmic") or _cli_cfg["tools"][platform[os.name]]["gmic"]
     return cmd_darktable, cmd_gmic
 
 
@@ -359,7 +351,7 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
         )
     # Invoke denoiser natively (no subprocess)
 
-    _dim = import_denoise_image()
+    from nind_denoise import denoise_image
     from types import SimpleNamespace as _NS
     _di_args = _NS(
         cs=None,
@@ -379,7 +371,7 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
         models_dpath=None,
     )
     # autodetects cs/ucs/network as needed and runs
-    _dim.run_from_args(_di_args)
+    denoise_image.run_from_args(_di_args)
 
     if not stage_one_denoised_filepath.exists():
         logger.error("Denoiser did not output a file where expected: %s", stage_one_denoised_filepath)
@@ -415,7 +407,7 @@ def run_pipeline(_args: dict, _input_path: pathlib.Path) -> None:
     ], cwd=outpath.parent)
 
     # Deblur stage
-    deblur_stage = RLDeblur() if rldeblur else NoOpDeblur()
+    deblur_stage = RLDeblurPT() if rldeblur else NoOpDeblur()
     ctx = Context(
         outpath=outpath,
         stage_two_output_filepath=stage_two_output_filepath,
