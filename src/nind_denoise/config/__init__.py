@@ -20,8 +20,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Sequence
 
-from nind_denoise.exceptions import SubprocessError
 from .config import Config, Tool, Tools, logger
+from .. import SubprocessError
 
 
 def run_cmd(args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:

@@ -19,7 +19,7 @@ from typing import Dict, Optional
 
 import yaml
 
-from nind_denoise.exceptions import ConfigurationError, ExternalToolNotFound
+from nind_denoise import ConfigurationError, ExternalToolNotFound
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +99,9 @@ class Tool:
 
 
 class Tools:
-    """Platform-aware collection of external tools.
+    """Platform-aware collection of external (executable) tools.
 
-    This class manages a collection of external command-line tools, automatically
+    This class manages the collection of external command-line tools, automatically
     selecting the appropriate tool configuration based on the current platform
     (Windows vs POSIX systems). Tools are instantiated only for the current platform.
 
@@ -214,8 +214,8 @@ class Config:
             self._tools = Tools(self._config["tools"])
             self._operations = None
 
-        # -------- Per-job fields (superset of former JobContext) --------
-        # Paths are optional until a specific job is assigned
+        # -------- Per-job fields --------
+        # Paths are optional until they are needed by an operation
         if not hasattr(self, "input_path"):
             self.input_path: Optional[Path] = None
         if not hasattr(self, "output_path"):

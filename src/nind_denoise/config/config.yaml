@@ -12,7 +12,10 @@
 models:
   nind_generator_650.pt:
     path: "models/brummer2019/generator_650.pt"
-    # Uncomment the line below to make this the default model
+    overlap: "6"
+    batch_size: "1"
+    # device: # e.g., "cpu", "cuda", "mps" Leave blank for autoselect.
+    # Uncomment the line below to make this the default model (when you have more than one)
     # default: true
 
 # Tools Section  

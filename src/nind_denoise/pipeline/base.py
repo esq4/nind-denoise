@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import AsyncIterator, Optional, Sequence, Type
+from types import TracebackType
+from typing import AsyncIterator, Optional, Self, Sequence, Type
 
 from nind_denoise.config.config import Config
 
@@ -73,7 +74,7 @@ class Operation(ABC):
     """Abstract base for all operations (export, denoise, deblur)."""
 
     def __init__(self):
-        pass
+        self._ctx = self.cfg  # type: ignore[attr-defined]
 
     @abstractmethod
     def get_result(self):
@@ -93,6 +94,92 @@ class Operation(ABC):
         """Verify operation outputs. Implementations should raise StageError on failure."""
         ...
 
+    def __enter__(self) -> Self:
+        # Attach the config as lightweight context for downstream helpers
+        self._ctx = self.cfg  # type: ignore[attr-defined]
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> bool:
+        # Cleanup any ephemeral context and propagate exceptions
+        if hasattr(self, "_ctx"):
+            try:
+                delattr(self, "_ctx")
+            except Exception:
+                pass
+        return False
+
+    async def __aenter__(self) -> Self:
+        self._ctx = self.cfg  # type: ignore[attr-defined]
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> bool:
+        if hasattr(self, "_ctx"):
+            try:
+                delattr(self, "_ctx")
+            except Exception:
+                pass
+        return False
+
+
+class ExportOperation(Operation, ABC):
+
+    @abstractmethod
+    def get_result(self):
+        pass
+
+    def execute(self, cfg: Config) -> None:
+        """
+                Execute a command with the given arguments and working directory.
+
+                :param cfg: The configuration object containing command-line arguments.
+                :type cfg: Config
+
+                :return: This method does not return any value.
+                :rtype: None
+        # TODO"""
+        if hasattr(self, "_ctx"):
+            if getattr(self._ctx, "verbose", False):  # type: ignore[attr-defined]
+                logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
+            self._ctx.run_cmd(args, cwd=cwd)
+
+    def _prepare_output_file(self) -> None:
+        """Ensure the output directory exists and remove any pre-existing file.
+        Centralized helper so run_pipeline doesn't need to handle per-op output housekeeping.
+        """
+        try:
+            self._ctxpath.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:  # pragma: no cover - defensive; mkdir rarely fails here
+            pass
+
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    def write_xmp_file(
+        self, src_xmp: Path, dst_xmp: Path, stage: int, *, verbose: bool = False
+    ) -> None:
+        """Helper to build and write a stage-specific XMP file.
+        Delegates to nind_denoise.xmp.write_xmp_file to avoid duplicating logic.
+        """
+        from nind_denoise.pipeline.orchestrator import write_xmp_file as _write_xmp_file
+
+        _write_xmp_file(src_xmp, dst_xmp, stage, verbose=verbose)
+
+
+class DenoiseOperation(Operation, ABC):
+
+    @abstra
     def _prepare_output_file(self, path: Path) -> None:
         """Ensure the output directory exists and remove any pre-existing file.
         Centralized helper so run_pipeline doesn't need to handle per-op output housekeeping.
@@ -118,55 +205,30 @@ class Operation(ABC):
         _write_xmp_file(src_xmp, dst_xmp, stage, verbose=verbose)
 
 
-class ExportOperation(Operation, ABC):
+class DenoiseStage(DenoiseOperation):
+    def __init__(self, input_tif: Path, output_tif: Path, options: DenoiseOptions):
+        self.input_tif = input_tif
+        self.output_tif = output_tif
+        self.options = options
 
-    @abstractmethod
-    def get_result(self):
-        pass
+    def describe(self) -> str:  # pragma: no cover - description only
+        return "Denoise (NIND PT)"
 
-    def execute(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
-        """
-        Execute a command with the given arguments and working directory.
+    def execute(self, ctx: Context) -> None:
+        # Store context for helpers/logging
+        self._ctx = ctx  # type: ignore[attr-defined]
 
-        :param args: The sequence of arguments to be passed to the command.
-                     Each argument can be a string or a path object.
-        :type args: Sequence[str | Path]
+        if not self.input_tif.exists():
+            raise StageError(f"Input TIFF missing for denoise: {self.input_tif}")
+        from denoise import NIND
 
-        :param cwd: The working directory for the command. If not provided,
-                   the current working directory is used.
-        :type cwd: Optional[Path]
+        denoiser = NIND(self.options)
+        denoiser.run(self.input_tif, self.output_tif)
+        self.verify()
 
-        :return: This method does not return any value.
-        :rtype: None
-
-        .. note::
-
-           If the verbose mode is enabled in the context, it logs the command
-           being executed.
-
-        .. warning::
-
-           Ensure that the provided arguments and working directory are valid;
-           otherwise, the command execution may fail.
-
-        .. seealso::
-
-           The `self._ctx.run_cmd` method for executing commands.
-        """
-        if hasattr(self, "_ctx"):
-            if getattr(self._ctx, "verbose", False):  # type: ignore[attr-defined]
-                logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
-            self._ctx.run_cmd(args, cwd=cwd)
-
-
-class DenoiseOperation(Operation, ABC):
-
-    def _run_cmd(self, args: Sequence[str | Path], cwd: Optional[Path] = None) -> None:
-        from nind_denoise import config as _config
-
-        if hasattr(self, "_ctx") and getattr(self._ctx, "verbose", False):  # type: ignore[attr-defined]
-            logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
-        _config.run_cmd(args, cwd=cwd)
+    def verify(self, ctx: Context | None = None) -> None:
+        if not self.output_tif.exists():
+            raise StageError(f"Denoise stage expected output missing: {self.output_tif}")
 
 
 class StageError(Exception):

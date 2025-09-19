@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import copy
-import inspect
 import logging
-from abc import ABC, abstractmethod
+from abc import ABC
 from pathlib import Path
-from types import TracebackType
-from typing import Optional, Self, Type
 
 import numpy as np
 import torch
@@ -22,66 +18,33 @@ logger = logging.getLogger(__name__)
 
 class Deblur(Operation, ABC):
 
-    def __init__(self, cfg: Optional[Config] = None):
-        # Make an in-memory copy of cfg only when instantiating a concrete subclass
-        if cfg is not None and not inspect.isabstract(self.__class__):
-            try:
-                self.cfg = copy.deepcopy(cfg)
-            except Exception:
-                # Fallback to shallow copy; if that also fails, use original reference
-                try:
-                    self.cfg = copy.copy(cfg)
-                except Exception:
-                    self.cfg = cfg
-        else:
-            self.cfg = cfg
-
-    @abstractmethod
-    def describe(self):
-        pass
-
-    @abstractmethod
-    def execute(self, cfg: Config) -> None:
-        """Execute RL deblur with Config carrying per-job fields."""
-        pass
-
     # Context manager support (sync)
-    def __enter__(self) -> Self:
-        # Attach the config as lightweight context for downstream helpers
-        self._ctx = self.cfg  # type: ignore[attr-defined]
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc: Optional[BaseException],
-        tb: Optional[TracebackType],
-    ) -> bool:
-        # Cleanup any ephemeral context and propagate exceptions
-        if hasattr(self, "_ctx"):
-            try:
-                delattr(self, "_ctx")
-            except Exception:
-                pass
-        return False
 
     # Async context manager support
-    async def __aenter__(self) -> Self:
-        self._ctx = self.cfg  # type: ignore[attr-defined]
-        return self
 
-    async def __aexit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc: Optional[BaseException],
-        tb: Optional[TracebackType],
-    ) -> bool:
-        if hasattr(self, "_ctx"):
-            try:
-                delattr(self, "_ctx")
-            except Exception:
-                pass
-        return False
+    def _prepare_output_file(self, path: Path) -> None:
+        """Ensure the output directory exists and remove any pre-existing file.
+        Centralized helper so run_pipeline doesn't need to handle per-op output housekeeping.
+        """
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:  # pragma: no cover - defensive; mkdir rarely fails here
+            pass
+
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    def write_xmp_file(
+        self, src_xmp: Path, dst_xmp: Path, stage: int, *, verbose: bool = False
+    ) -> None:
+        """Helper to build and write a stage-specific XMP file.
+        Delegates to nind_denoise.xmp.write_xmp_file to avoid duplicating logic.
+        """
+        from nind_denoise.pipeline.orchestrator import write_xmp_file as _write_xmp_file
+
+        _write_xmp_file(src_xmp, dst_xmp, stage, verbose=verbose)
 
 
 class RLDeblur(Deblur):

@@ -17,6 +17,7 @@ will function with the current state of the source code.
 import math
 from enum import Enum
 
+import nind_denoise.libs.brummer2019.dataset
 from nind_denoise.pipeline.denoise.brummer2019 import Model
 
 """
@@ -70,9 +71,7 @@ def validate_generator(model, validation_set, output_to_dir=None):
         if output_to_dir is not None:
             os.makedirs(output_to_dir, exist_ok=True)
             # This saves as 8-bit tiff (we don't really care for the preview) and includes borders
-            torchvision.utils.save_image(
-                denoised_fs, os.path.join(output_to_dir, str(i) + ".tif")
-            )
+            torchvision.utils.save_image(denoised_fs, os.path.join(output_to_dir, str(i) + ".tif"))
         losses.append(model.get_loss(component="weighted"))
     avgloss = statistics.mean(losses)
     model.train()
@@ -94,9 +93,7 @@ def test_generator(model, test_set, output_to_dir=None):
         model.compute_loss(denoised, clean)
         if output_to_dir is not None:
             os.makedirs(output_to_dir, exist_ok=True)
-            torchvision.utils.save_image(
-                denoised, os.path.join(output_to_dir, str(i) + ".tif")
-            )
+            torchvision.utils.save_image(denoised, os.path.join(output_to_dir, str(i) + ".tif"))
         losses.append(model.get_loss(component="weighted"))
     avgloss = statistics.mean(losses)
     model.todevice()
@@ -213,10 +210,7 @@ class Generator(Model):
         """
         if pretty_printed:
             return ", ".join(
-                [
-                    "%s: %.3f" % (key, val) if val != 1 else "NA"
-                    for key, val in self.loss.items()
-                ]
+                ["%s: %.3f" % (key, val) if val != 1 else "NA" for key, val in self.loss.items()]
             )
         return self.loss[component]
 
@@ -264,9 +258,7 @@ class Generator(Model):
             if weight == 0:
                 continue
             elif loss_name[0] == "D":
-                discriminator_predictions = discriminators_predictions[
-                    int(loss_name[1])
-                ]
+                discriminator_predictions = discriminators_predictions[int(loss_name[1])]
                 if discriminator_predictions is None:
                     continue
                 self.loss[loss_name] = self.criterions[loss_name](
@@ -371,9 +363,7 @@ class Discriminator(Model):
         )
         # elif network == 'PatchGAN':
         #    self.model = net_d = define_D(input_channels, 2*funit, 'basic', gpu_id=device)
-        self.optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=lr, betas=(beta1, 0.999)
-        )
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr, betas=(beta1, 0.999))
         self.conditional = not not_conditional
         self.predictions_range = None
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -396,9 +386,7 @@ class Discriminator(Model):
         if self.loss_function == "MSE":
             self.loss = (math.sqrt(loss_fake) + math.sqrt(loss_real)) / 2
         else:
-            self.print(
-                "Error: loss function not implemented: %s" % (self.loss_function)
-            )
+            self.print("Error: loss function not implemented: %s" % (self.loss_function))
 
     def discriminate_batch(self, generated_batch_cropped, noisy_batch_cropped=None):
         if self.conditional:
@@ -407,15 +395,11 @@ class Discriminator(Model):
             fake_batch = generated_batch_cropped
         return self.model(fake_batch)
 
-    def learn(
-        self, generated_batch_cropped, clean_batch_cropped, noisy_batch_cropped=None
-    ):
+    def learn(self, generated_batch_cropped, clean_batch_cropped, noisy_batch_cropped=None):
         self.optimizer.zero_grad()
         if self.conditional:
             real_batch = torch.cat([noisy_batch_cropped, clean_batch_cropped], 1)
-            fake_batch = torch.cat(
-                [noisy_batch_cropped, generated_batch_cropped.detach()], 1
-            )
+            fake_batch = torch.cat([noisy_batch_cropped, generated_batch_cropped.detach()], 1)
         else:
             real_batch = clean_batch_cropped
             fake_batch = generated_batch_cropped.detach()
@@ -424,31 +408,21 @@ class Discriminator(Model):
             batch_savename = os.path.join("dbg", str(time.time()))
             if self.conditional:
                 real_batch_detached = (
-                    torch.cat([real_batch[:, :3, :, :], real_batch[:, 3:, :, :]], 0)
-                    .detach()
-                    .cpu()
+                    torch.cat([real_batch[:, :3, :, :], real_batch[:, 3:, :, :]], 0).detach().cpu()
                 )
                 fake_batch_detached = (
-                    torch.cat([fake_batch[:, :3, :, :], fake_batch[:, 3:, :, :]], 0)
-                    .detach()
-                    .cpu()
+                    torch.cat([fake_batch[:, :3, :, :], fake_batch[:, 3:, :, :]], 0).detach().cpu()
                 )
             else:
                 real_batch_detached = real_batch.detach().cpu()
                 fake_batch_detached = fake_batch.detach().cpu()
-            torchvision.utils.save_image(
-                real_batch_detached, batch_savename + "_real.png"
-            )
-            torchvision.utils.save_image(
-                fake_batch_detached, batch_savename + "_fake.png"
-            )
+            torchvision.utils.save_image(real_batch_detached, batch_savename + "_real.png")
+            torchvision.utils.save_image(fake_batch_detached, batch_savename + "_fake.png")
 
         pred_real = self.model(real_batch)
         loss_real = self.criterion(
             pred_real,
-            gen_target_probabilities(
-                True, pred_real.shape, device=self.device, noisy=True
-            ),
+            gen_target_probabilities(True, pred_real.shape, device=self.device, noisy=True),
         )
         loss_real_detached = loss_real.item()
         loss_real.backward()
@@ -547,43 +521,27 @@ if __name__ == "__main__":
         config_file_parser_class=configargparse.YAMLConfigFileParser,
     )
     parser.add("-c", "--config", is_config_file=True, help="(yaml) config file path")
-    parser.add(
-        "-c2", "--config2", is_config_file=True, help="extra (yaml) config file path"
-    )
+    parser.add("-c2", "--config2", is_config_file=True, help="extra (yaml) config file path")
     parser.add_argument("--batch_size", type=int, help="Training batch size")
-    parser.add_argument(
-        "--time_limit", type=int, help="Time limit in seconds (ends training)"
-    )
+    parser.add_argument("--time_limit", type=int, help="Time limit in seconds (ends training)")
     parser.add_argument(
         "--g_activation",
         type=str,
         default="PReLU",
         help="Final activation function for generator",
     )
-    parser.add_argument(
-        "--g_funit", type=int, default=32, help="Filter unit size for generator"
-    )
+    parser.add_argument("--g_funit", type=int, default=32, help="Filter unit size for generator")
     parser.add_argument(
         "--g_model_path",
         help="Generator pretrained model path (.pth for model, .pt for dictionary)",
     )
     parser.add_argument("--models_dpath", help="Directory where all models are saved")
     parser.add_argument("--beta1", type=float, help="beta1 for adam")
-    parser.add_argument(
-        "--g_lr", type=float, help="Initial learning rate for adam (generator)"
-    )
-    parser.add_argument(
-        "--weight_SSIM", type=float, help="Weight on SSIM term in objective"
-    )
-    parser.add_argument(
-        "--weight_MSSSIM", type=float, help="Weight on MSSSIM term in objective"
-    )
-    parser.add_argument(
-        "--weight_L1", type=float, help="Weight on L1 term in objective"
-    )
-    parser.add_argument(
-        "--weight_MSE", type=float, help="Weight on L1 term in objective"
-    )
+    parser.add_argument("--g_lr", type=float, help="Initial learning rate for adam (generator)")
+    parser.add_argument("--weight_SSIM", type=float, help="Weight on SSIM term in objective")
+    parser.add_argument("--weight_MSSSIM", type=float, help="Weight on MSSSIM term in objective")
+    parser.add_argument("--weight_L1", type=float, help="Weight on L1 term in objective")
+    parser.add_argument("--weight_MSE", type=float, help="Weight on L1 term in objective")
     parser.add_argument(
         "--test_reserve",
         nargs="*",
@@ -626,12 +584,8 @@ if __name__ == "__main__":
         default=6,
         help="Number of threads for data loader to use",
     )
-    parser.add_argument(
-        "--min_lr", type=float, help="Minimum learning rate (ends training)"
-    )
-    parser.add_argument(
-        "--epochs", type=int, default=9001, help="Number of epochs (ends training)"
-    )
+    parser.add_argument("--min_lr", type=float, help="Minimum learning rate (ends training)")
+    parser.add_argument("--epochs", type=int, default=9001, help="Number of epochs (ends training)")
     parser.add_argument(
         "--compute_SSIM_anyway",
         action="store_true",
@@ -642,9 +596,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Freeze generator until discriminator is useful",
     )
-    parser.add_argument(
-        "--start_epoch", default=1, type=int, help="Starting epoch (cosmetics)"
-    )
+    parser.add_argument("--start_epoch", default=1, type=int, help="Starting epoch (cosmetics)")
     parser.add_argument(
         "--patience",
         type=int,
@@ -731,9 +683,7 @@ if __name__ == "__main__":
         default="MSE",
         help="Discriminator loss function",
     )
-    parser.add_argument(
-        "--d_lr", type=float, help="Initial learning rate for adam (discriminator)"
-    )
+    parser.add_argument("--d_lr", type=float, help="Initial learning rate for adam (discriminator)")
     parser.add_argument(
         "--d2_lr", type=float, help="Initial learning rate for adam (discriminator)"
     )
@@ -780,9 +730,7 @@ if __name__ == "__main__":
         use_D2 = weights["D2"] > 0
 
         expname = (
-            datetime.datetime.now().isoformat()[:-10]
-            + "_"
-            + "_".join(sys.argv).replace("/", "-")
+            datetime.datetime.now().isoformat()[:-10] + "_" + "_".join(sys.argv).replace("/", "-")
         )[0:255]
         model_dir = os.path.join(args.models_dpath, expname)
         os.makedirs(model_dir, exist_ok=True)
@@ -806,7 +754,7 @@ if __name__ == "__main__":
             args.min_crop_size is None or args.min_crop_size == 0
         ) and DebugOptions.CHECK_DATASET in debug_options:
             args.min_crop_size = args.cs
-        DDataset = dataset_torch_3.DenoisingDataset(
+        DDataset = nind_denoise.libs.brummer2019.dataset.DenoisingDataset(
             args.train_data,
             test_reserve=args.test_reserve,
             cs=args.cs,
@@ -823,7 +771,7 @@ if __name__ == "__main__":
             DDataset.dataset = DDataset.dataset[: 3 * args.batch_size]
 
         if args.clean_data_ratio is not None and args.clean_data_ratio > 0:
-            CCdataset = dataset_torch_3.CleanCleanDataset(
+            CCdataset = nind_denoise.libs.brummer2019.dataset.CleanCleanDataset(
                 args.clean_data_dpath, cs=args.cs
             )
             bs_clean = max(1, int(args.batch_size * args.clean_data_ratio))
@@ -909,13 +857,11 @@ if __name__ == "__main__":
 
         # Validation data
         if args.validation_interval > 0:
-            validation_set = dataset_torch_3.ValidationDataset(
+            validation_set = nind_denoise.libs.brummer2019.dataset.ValidationDataset(
                 args.validation_set_yaml, device=device, cs=args.cs
             )
             if DebugOptions.OUTPUT_VAL_IMAGES in debug_options:
-                get_validation_dpath = lambda epoch: os.path.join(
-                    model_dir, "val", str(epoch)
-                )
+                get_validation_dpath = lambda epoch: os.path.join(model_dir, "val", str(epoch))
             else:
                 get_validation_dpath = lambda epoch: None
             validation_loss = validate_generator(
@@ -925,13 +871,11 @@ if __name__ == "__main__":
             p.print(f"Validation loss: {validation_loss}")
         # Test data
         if args.test_interval > 0:
-            test_set = dataset_torch_3.TestDenoiseDataset(
+            test_set = nind_denoise.libs.brummer2019.dataset.TestDenoiseDataset(
                 data_dpath=args.orig_data, sets=args.test_reserve
             )
             if DebugOptions.OUTPUT_TEST_IMAGES in debug_options:
-                get_test_dpath = lambda epoch: os.path.join(
-                    model_dir, "testimages", str(epoch)
-                )
+                get_test_dpath = lambda epoch: os.path.join(model_dir, "testimages", str(epoch))
             else:
                 get_test_dpath = lambda epoch: None
 
@@ -964,20 +908,15 @@ if __name__ == "__main__":
                     iteration,
                     len(data_loader),
                 )
-                clean_batch_cropped = pt_ops.pt_crop_batch(
-                    batch[0].to(device), args.loss_cs
-                )
+                clean_batch_cropped = pt_ops.pt_crop_batch(batch[0].to(device), args.loss_cs)
                 noisy_batch = batch[1].to(device)
                 noisy_batch_cropped = pt_ops.pt_crop_batch(noisy_batch, args.loss_cs)
                 generated_batch = generator.denoise_batch(noisy_batch)
-                generated_batch_cropped = pt_ops.pt_crop_batch(
-                    generated_batch, args.loss_cs
-                )
+                generated_batch_cropped = pt_ops.pt_crop_batch(generated_batch, args.loss_cs)
                 # train discriminator based on its previous performance
                 discriminator_learns = (
                     use_D
-                    and (discriminator.get_loss() + args.discriminator_advantage)
-                    > random.random()
+                    and (discriminator.get_loss() + args.discriminator_advantage) > random.random()
                 ) or frozen_generator
                 if discriminator_learns:
                     discriminator.learn(
@@ -1069,9 +1008,7 @@ if __name__ == "__main__":
                     loss_G_list.append(generator.get_loss(component="weighted"))
                     if generator.weights["SSIM"] > 0 or generator.compute_SSIM_anyway:
                         loss_G_SSIM_list.append(generator.get_loss(component="SSIM"))
-                    iteration_summary += "loss G: %s" % generator.get_loss(
-                        pretty_printed=True
-                    )
+                    iteration_summary += "loss G: %s" % generator.get_loss(pretty_printed=True)
                 else:
                     generator.zero_grad()
                     if frozen_generator:
@@ -1085,8 +1022,7 @@ if __name__ == "__main__":
                 dpath=model_dir,
                 keepers=jsonsaver.get_best_steps(),
                 model_t="generator",
-                keep_all_output_images=DebugOptions.KEEP_ALL_OUTPUT_IMAGES
-                in debug_options,
+                keep_all_output_images=DebugOptions.KEEP_ALL_OUTPUT_IMAGES in debug_options,
             )
             p.print(f"delete_outperformed_models removed {removed}")
 
@@ -1095,14 +1031,10 @@ if __name__ == "__main__":
                 validation_loss = validate_generator(
                     generator, validation_set, output_to_dir=get_validation_dpath(epoch)
                 )
-                jsonsaver.add_res(
-                    epoch, {"validation_loss": validation_loss}, write=False
-                )
+                jsonsaver.add_res(epoch, {"validation_loss": validation_loss}, write=False)
                 p.print(f"Validation loss: {validation_loss}")
             if args.test_interval > 0 and epoch % args.test_interval == 0:
-                test_loss = test_generator(
-                    generator, test_set, output_to_dir=get_test_dpath(epoch)
-                )
+                test_loss = test_generator(generator, test_set, output_to_dir=get_test_dpath(epoch))
                 jsonsaver.add_res(epoch, {"test_loss": test_loss}, write=False)
 
             p.print("Epoch %u summary:" % epoch)
@@ -1125,15 +1057,11 @@ if __name__ == "__main__":
                     epoch, {"train_weighted_loss": average_g_weighted_loss}, write=False
                 )
                 lr_loss = (
-                    validation_loss
-                    if validation_loss is not None
-                    else average_g_weighted_loss
+                    validation_loss if validation_loss is not None else average_g_weighted_loss
                 )
 
                 if len(generator_loss_hist) > 0 and max(generator_loss_hist) < lr_loss:
-                    generator_learning_rate = generator.update_learning_rate(
-                        args.reduce_lr_factor
-                    )
+                    generator_learning_rate = generator.update_learning_rate(args.reduce_lr_factor)
                     p.print(
                         f"Generator learning rate updated to {generator_learning_rate} because generator_loss_hist={generator_loss_hist} < lr_loss={lr_loss}"
                     )
@@ -1141,9 +1069,7 @@ if __name__ == "__main__":
 
                 # TODO reset to previous best (or init if epoch 1) if failed (eg lr_loss <= .4)
 
-                jsonsaver.add_res(
-                    epoch, {"gen_lr": generator_learning_rate}, write=True
-                )
+                jsonsaver.add_res(epoch, {"gen_lr": generator_learning_rate}, write=True)
             else:
                 p.print("Generator learned nothing")
             if use_D:
@@ -1152,9 +1078,7 @@ if __name__ == "__main__":
                 if len(loss_D_list) > 0:
                     average_d_loss = statistics.mean(loss_D_list)
                     p.print("Average normalized loss: %f" % (average_d_loss))
-                    discriminator_learning_rate = discriminator.update_learning_rate(
-                        average_d_loss
-                    )
+                    discriminator_learning_rate = discriminator.update_learning_rate(average_d_loss)
                     discriminator.save_model(model_dir, epoch, "discriminator")
             if use_D2:
                 p.print("Discriminator2:")
@@ -1187,9 +1111,7 @@ def gen_target_probabilities(
     """
     fuzziness for the discriminator's targets, because blind confidence is not right.
     """
-    if (target_real and not invert_probabilities) or (
-        not target_real and invert_probabilities
-    ):
+    if (target_real and not invert_probabilities) or (not target_real and invert_probabilities):
         if noisy:
             res = 19 / 20 + torch.rand(target_probabilities_shape) / 20
         else:

@@ -37,12 +37,17 @@ Note:
     as the lowest ISO images in each directory.
 """
 
+import argparse
 import os
 import sys
 
 import configargparse
-
 import loss
+import torch
+import torchvision
+from PIL import Image
+
+import nind_denoise.libs.brummer2019.dataset
 import nind_denoise.pipeline.denoise.brummer2019
 import nind_denoise.train.nn_train
 from nind_denoise.pipeline.denoise.brummer2019 import Model
@@ -146,9 +151,7 @@ def parse_args():
         type=int,
         help="Padding amount in pixels applied to each side when using whole_image mode (defaults to (cs-ucs)/2 when cropping)",
     )
-    parser.add_argument(
-        "--max_subpixels", type=int, help="Max number of pixels, otherwise abort."
-    )
+    parser.add_argument("--max_subpixels", type=int, help="Max number of pixels, otherwise abort.")
     parser.add_argument(
         "--test_reserve",
         nargs="*",
@@ -161,6 +164,27 @@ def parse_args():
     parser.add_argument("--models_dpath", help="Directory where all models are saved")
     args = parser.parse_args()
     return args
+
+
+def gen_score(noisy_dir, gt_dir="../../datasets/test/NIND/ds_fs"):
+    with torch.accelerator.current_accelerator(
+        check_available=True
+    ) as device:  # will return None if no gpu, should all still work
+        MSE = torch.nn.MSELoss().to(device)
+        SSIM = pytorch_ssim.SSIM().to(device)
+        with open(os.path.join(noisy_dir, "res.txt"), "w") as f:
+            for noisy_img in files(noisy_dir):
+                gtpath = find_gt_path(noisy_img, gt_dir)
+                noisy_path = os.path.join(noisy_dir, noisy_img)
+                gtimg = totensor(Image.open(gtpath)).to(device)
+                noisyimg = totensor(Image.open(noisy_path)).to(device)
+                gtimg = gtimg.reshape([1] + list(gtimg.shape))
+                noisyimg = noisyimg.reshape([1] + list(noisyimg.shape))
+                MSELoss = MSE(gtimg, noisyimg).item()
+                SSIMScore = SSIM(gtimg, noisyimg).item()
+                res = noisy_img + "," + str(SSIMScore) + "," + str(MSELoss)
+                print(res)
+                f.write(res + "\n")
 
 
 if __name__ == "__main__":
@@ -213,9 +237,7 @@ if __name__ == "__main__":
         test_set_str = utilities.get_root(args.noisy_dir)
     else:
         # Test reserve evaluation mode - use predefined test sets for model evaluation
-        sets_to_denoise = nind_denoise.train.nn_train.get_test_reserve_list(
-            args.test_reserve
-        )
+        sets_to_denoise = nind_denoise.train.nn_train.get_test_reserve_list(args.test_reserve)
         args.noisy_dir = args.orig_data  # Point to original training data location
 
         # Generate test set identifier for result organization
@@ -245,7 +267,7 @@ if __name__ == "__main__":
         aset_indir = os.path.join(args.noisy_dir, aset)
 
         # Identify ground truth image (lowest-ISO baseline for quality comparison)
-        baseline_fpath = dataset_torch_3.get_baseline_fpath(aset_indir)
+        baseline_fpath = nind_denoise.libs.brummer2019.dataset.get_baseline_fpath(aset_indir)
         images_fn = os.listdir(aset_indir)
 
         # Process each noisy image in the current set
@@ -268,9 +290,7 @@ if __name__ == "__main__":
 
                 di_args = _NS(
                     cs=int(args.cs) if args.cs is not None else None,  # Crop size
-                    ucs=(
-                        int(args.ucs) if args.ucs is not None else None
-                    ),  # Useful crop size
+                    ucs=(int(args.ucs) if args.ucs is not None else None),  # Useful crop size
                     overlap=6,  # Overlap between crops to avoid boundary artifacts
                     input=inimg_path,
                     output=outimg_path,
@@ -281,14 +301,10 @@ if __name__ == "__main__":
                     model_path=model_path,
                     model_parameters=args.model_parameters,
                     max_subpixels=(
-                        int(args.max_subpixels)
-                        if args.max_subpixels is not None
-                        else None
+                        int(args.max_subpixels) if args.max_subpixels is not None else None
                     ),
                     whole_image=bool(args.whole_image),  # Skip cropping if True
-                    pad=(
-                        128 if args.whole_image else args.pad
-                    ),  # Padding for whole image mode
+                    pad=(128 if args.whole_image else args.pad),  # Padding for whole image mode
                     models_dpath=args.models_dpath,
                 )
                 # Execute denoising using Brummer2019 pipeline
@@ -320,9 +336,7 @@ if __name__ == "__main__":
 
         # Save results to training results JSON (primary logging)
         # Note: This file may be overwritten by concurrent training processes
-        json_res_fpath = os.path.join(
-            utilities.get_root(args.model_path), "trainres.json"
-        )
+        json_res_fpath = os.path.join(utilities.get_root(args.model_path), "trainres.json")
         jsonsaver = json_saver.JSONSaver(json_res_fpath, step_type="epoch")
         jsonsaver.add_res(step=epoch, res=losses_per_set, key_prefix="test_")
     except ValueError as e:
@@ -333,9 +347,7 @@ if __name__ == "__main__":
 
     try:
         # Create dedicated test results backup JSON (more reliable for analysis)
-        json_res_fpath = os.path.join(
-            utilities.get_root(args.model_path), "testres.json"
-        )
+        json_res_fpath = os.path.join(utilities.get_root(args.model_path), "testres.json")
         jsonsaver = json_saver.JSONSaver(json_res_fpath, step_type="epoch")
         jsonsaver.add_res(step=epoch, res=losses_per_set, key_prefix="test_")
     except TypeError as e:
@@ -346,4 +358,25 @@ if __name__ == "__main__":
 
     # Legacy scoring system (marked as obsolete but maintained for compatibility)
     if not args.no_scoring:
-        loss.gen_score(denoised_save_dir, args.noisy_dir)
+        gen_score(denoised_save_dir, args.noisy_dir)
+totensor = torchvision.transforms.ToTensor()
+
+
+def find_gt_path(denoised_fn, gt_dir):
+    dsname, setdir = denoised_fn.split("_")[0:2]
+    setfiles = os.listdir(os.path.join(gt_dir, setdir))
+    ext = setfiles[0].split(".")[-1]
+    isos = [fn.split("_")[2][:-4] for fn in setfiles]
+    baseiso = sortISOs(isos)[0][0]
+    baseiso_fn = dsname + "_" + setdir + "_" + baseiso + "." + ext
+    gt_fpath = os.path.join(gt_dir, setdir, baseiso_fn)
+    return gt_fpath
+
+
+def files(path):
+    for fn in os.listdir(path):
+        if os.path.isfile(os.path.join(path, fn)) and fn != "res.txt":
+            yield fn
+
+
+parser = argparse.ArgumentParser(description="Get SSIM score and MSE loss from test images")

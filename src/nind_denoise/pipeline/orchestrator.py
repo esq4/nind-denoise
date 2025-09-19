@@ -12,6 +12,7 @@ import exiv2
 from bs4 import BeautifulSoup
 
 import nind_denoise.config
+from nind_denoise.libs.common.pt_helpers import fpath_to_tensor
 from nind_denoise.pipeline.base import Operation, OperationsFactory
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,77 @@ def get_output_extension(args: dict) -> str:
     """Normalize output extension string from args dict."""
     ext = str(args.get("--extension", "")).strip() or "jpg"
     return ext if ext.startswith(".") else "." + ext
+
+
+def filepath_input_connector(cls):
+    """Class decorator that ensures `filepath_input_connector` converts image path to tensor before proceeding."""
+    original = getattr(cls, "input_connector", None)
+
+    def _wrapped_input_connector(self, *args, **kwargs):
+        # Convert the current image file path (or supported input) into a tensor
+        self.image = fpath_to_tensor(self.image)
+        if callable(original):
+            return original(self, *args, **kwargs)
+        # If there is no original, return the image (tensor) for convenience
+        return self.image
+
+    setattr(cls, "input_connector", _wrapped_input_connector)
+    return cls
+
+
+class Pipe:
+    """A better design for run_pipeline. This should take in `_args`, whether they be sourced from the cli,
+    from configuration files, via API or whatever; those `_args` should contain the information needed to yield a
+    list of Operations (resolve_operations_list() or similar).
+    """
+
+    # todo what is an image
+    def __init__(self, image: object, cfg: nind_denoise.config.Config):
+        self.stage: int = 0
+        self.image = image  # probably would be better to make this a modular connector
+        self.cfg = nind_denoise.config.Config()
+        self.stages = _args.get("stages")
+        self.verbose = _args.get("verbose")
+        self.debug = _args.get("debug")
+
+    def input_connector(self):
+        pass
+
+    async def _filter(self, op: Operation) -> AsyncGenerator[Any, Any]:
+        """
+        Perform asynchronous filtering operation on an image using a given operation.
+
+        :param img: The input image to be processed.
+        :type img: object
+        :param op: An instance of :class:`nind_denoise.pipeline.base.Operation` which defines the filtering operation to be applied on the image.
+        :type op: nind_denoise.pipeline.base.Operation
+        :return: Yields the result of the operation asynchronously.
+        :rtype: AsyncGenerator[Any, Any]
+
+        """
+        async with op:
+            # We want this to be asynchronous s.t. we don't have to wait for file operations to finish, for example.
+            # If it were possible to just yoink the output from memory, anyway. Which might be hard.
+            op.execute(self.cfg)
+            yield op.output
+
+            yield op.execute(self.cfg)
+
+    async def result(self):
+        async for operation in OperationsFactory(self.stages):
+            # This intentionally blocks on completion of each stage
+            self._img = await filter(self._img)
+            self.stage += 1
+            if self.debug:
+                # retain intermediates
+                setattr(self, "_img", "stage %d" % self.stage)
+                if self.verbose:
+                    print("Completed Stage %d" % self.stage)
+        return self._img
+
+    def run(self):
+        # initializing models themselves can be time-consuming, so you should be able to
+        return self.processed
 
 
 def resolve_output_paths(
@@ -65,19 +137,24 @@ def resolve_unique_output_path(outpath: pathlib.Path) -> pathlib.Path:
     return outpath
 
 
+@filepath_input_connector
 class Pipe:
     """A better design for run_pipeline. This should take in `_args`, whether they be sourced from the cli,
     from configuration files, via API or whatever; those `_args` should contain the information needed to yield a
     list of Operations (resolve_operations_list() or similar).
     """
 
-    def __init__(self, _args):
+    # todo what is an image
+    def __init__(self, image: object, cfg: nind_denoise.config.Config):
         self.stage: int = 0
-        self.image = _args.get("input")  # probably would be better to make this a modular connector
+        self.image = image  # probably would be better to make this a modular connector
         self.cfg = nind_denoise.config.Config()
         self.stages = _args.get("stages")
         self.verbose = _args.get("verbose")
         self.debug = _args.get("debug")
+
+    def input_connecter(self):
+        pass
 
     async def _filter(self, op: Operation) -> AsyncGenerator[Any, Any]:
         """
@@ -99,8 +176,7 @@ class Pipe:
 
             yield op.execute(self.cfg)
 
-    @property
-    async def processed(self):
+    async def result(self):
         async for operation in OperationsFactory(self.stages):
             # This intentionally blocks on completion of each stage
             witself._img = await filter(self._img)

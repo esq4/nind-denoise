@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import pathlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,7 +17,6 @@ import numpy as np
 import piexif
 import torch
 import torchvision
-from torch.utils.data import DataLoader, Dataset
 
 from nind_denoise.config.config import Config
 from nind_denoise.libs.common import np_imgops, pt_helpers, utilities
@@ -24,6 +24,7 @@ from nind_denoise.pipeline.base import (
     DenoiseOperation,
     StageError,
 )
+from nind_denoise.pipeline.orchestrator import logger
 
 # Default tile sizes for different neural network architectures
 # CS = Crop Size (total tile size including padding)
@@ -110,20 +111,12 @@ class NIND(DenoiseOperation):
         s1_tif = Path(cfg.intermediate_path or cfg.input_path)  # type: ignore[arg-type]
         s1_denoised_tif = Path(cfg.output_path)  # type: ignore[arg-type]
 
-        # Model path comes from Config-selected model
-        model_path = cfg.model_path
-
-        # Create DenoiseOptions with model path
-        opts = DenoiseOptions(
-            model_path=model_path,
-            overlap=6,  # Could be configurable via JobContext in future
-            batch_size=1,  # Could be configurable via JobContext in future
-        )
-
         # Prepare output file (ensure directory exists and unlink stale file)
         self._prepare_output_file(s1_denoised_tif)
-
-        self._denoiser(opts, s1_denoised_tif, s1_tif)
+        if hasattr(self, "_ctx") and getattr(self._ctx, "verbose", False):  # type: ignore[attr-defined]
+            logger.info("%s: %s", self.describe(), " ".join(map(str, args)))
+        _config.run_cmd(args, cwd=cwd)
+        self.run_cmd()
 
     def verify(self, cfg: Config) -> None:
         """Verify that the denoising stage completed successfully.
@@ -146,7 +139,7 @@ class NIND(DenoiseOperation):
             raise StageError(f"Denoise stage expected output missing: {s1_denoised_tif}")
 
     @staticmethod
-    def _denoiser(self, opts: DenoiseOptions, s1_denoised_tif: Path, s1_tif: Path):
+    def run_cmd():
         """Execute the core denoising algorithm using neural networks.
 
         This method prepares arguments and delegates to the main denoising
@@ -161,6 +154,7 @@ class NIND(DenoiseOperation):
         # Import locally to avoid import-time side effects
         from types import SimpleNamespace as NS
 
+        # TODO make these loadable/passable
         args = NS(
             cs=None,
             ucs=None,
@@ -249,7 +243,7 @@ def autodetect_network_cs_ucs(args) -> None:
         print(f"cs={args.cs}, ucs={args.ucs}")
 
 
-class OneImageDS(Dataset):
+class OneImageDS(torch.utils.data.Dataset):
     """PyTorch dataset for processing a single image with tiling and padding.
 
     This dataset class divides a single large image into overlapping tiles
@@ -960,3 +954,16 @@ class Model:
         """
         self.model = self.model.train()
         return self
+
+
+def download_model_if_needed(model_path: pathlib.Path) -> None:
+    """Download the model file if it does not exist."""
+    from torch import hub
+
+    if not model_path.exists():
+        logger.info("Downloading denoiser model to %s", model_path)
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+        hub.download_url_to_file(
+            "https://f005.backblazeb2.com/file/modelzoo/nind/generator_650.pt",
+            str(model_path),
+        )

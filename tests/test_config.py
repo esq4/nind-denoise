@@ -1,4 +1,4 @@
-from src.nind_denoise.exceptions import ExternalToolNotFound
+from nind_denoise import ExternalToolNotFound
 
 
 def test_config_initialization(tmp_path):
@@ -234,9 +234,7 @@ def test_tools_platform_key():
 def test_tools_initialization(tmp_path):
     from src.nind_denoise.config.config import Tools
 
-    tools_cfg = {
-        "posix": {"tool1": {"path": str(tmp_path / "fake_tool"), "args": ["-arg1"]}}
-    }
+    tools_cfg = {"posix": {"tool1": {"path": str(tmp_path / "fake_tool"), "args": ["-arg1"]}}}
     tool_path = tmp_path / "fake_tool"
     tool_path.touch()
     tools = Tools(tools_cfg=tools_cfg)

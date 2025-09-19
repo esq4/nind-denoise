@@ -12,9 +12,11 @@ def test_run_cmd_stringifies_and_uses_cwd(monkeypatch):
         assert isinstance(cwd, str) or cwd is None
         captured["args"] = args
         captured["cwd"] = cwd
+
         # Simulate success
         class _Res:  # minimal CompletedProcess-like stub
             stdout = ""
+
         return _Res()
 
     monkeypatch.setattr(config.subprocess, "run", fake_run)
@@ -33,7 +35,7 @@ def test_run_cmd_raises_on_failure(monkeypatch):
     monkeypatch.setattr(config.subprocess, "run", fake_run)
 
     import pytest
-    from nind_denoise.exceptions import SubprocessError
+    from nind_denoise import SubprocessError
 
     with pytest.raises(SubprocessError):
         config.run_cmd(["false"])  # any command; our fake raises regardless
