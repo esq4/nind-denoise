@@ -255,28 +255,20 @@ def get_output_extension(args):
 
 def get_stage_filepaths(outpath, stage):
     """
-    Detailed description of the `get_stage_filepaths` function.
-
-    This function generates file paths for stages based on an output path and a given stage number. The function returns tuples containing the file paths for each specified stage.
-
-    :param outpath:
-        :type outpath: Path
-
+        Generates file paths for stages based on an output path and a given stage number. Note that the file extensions
+        in stage 1 are both tif and tiff. This is intentional, see: https://github.com/CommReteris/nind-denoise/issues/8
+        :param outpath:
             A ``Path`` object representing the base output path for files.
 
-    :param stage:
-        :type stage: int
-
+        :param stage:
             An integer indicating the stage number (1 or 2).
 
-    :return:
-        :rtype: tuple[Path, ...]
-
+        :return:
             Returns a tuple of ``Path`` objects corresponding to the file paths for the given stage.
     """
     if stage == 1:
         return pathlib.Path(outpath.parent, outpath.stem + '_s1' + '.tif'), \
-               pathlib.Path(outpath.parent, outpath.stem + '_s1_denoised' + '.tif')
+               pathlib.Path(outpath.parent, outpath.stem + '_s1_denoised' + '.tiff')
     elif stage == 2:
         return pathlib.Path(outpath.parent, outpath.stem + '_s2' + '.tif')
 
