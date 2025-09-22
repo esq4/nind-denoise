@@ -28,8 +28,7 @@
   USAGE
     * start the script "nind_denoise_rl" from Script Manager
     * in lua preferences:
-      - paste in the nind_denoise command, including the --network and --model-path, e.g.:
-        python3 ~/nind-denoise/src/nind_denoise/denoise_image.py --network UtNet --model_path "~/nind-denoise/models/2021-06-14T20_27_nn_train_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_with_clean_data.yaml_--g_model_path_..-..-models-nind_denoise-2021-06-12T11_48_nn_train_--config_configs-train_conf_utnet_std.yaml_--config2_configs-train_w/generator_650.pt"
+      - select the nind_denoise directory (containing src/denoise.py)
       - select GMic cli executable (for RL-deblur)
       - select the exiftool cli executable (optional, to copy EXIF to final image)
     * from "export selected", choose "nind-denoise RL" as target storage
@@ -67,6 +66,8 @@ end
 
 -- initialize module preferences
 if not dt.preferences.read(MODULE_NAME, "initialized", "bool") then
+  local default_dir = dt.configuration.running_os == "windows" and "C:\\nind_denoise" or (os.getenv("HOME") or "") .. "/nind_denoise"
+  dt.preferences.write(MODULE_NAME, "nind_denoise", "string", default_dir)
   dt.preferences.write(MODULE_NAME, "output_path", "string", "$(FILE_FOLDER)/darktable_exported/$(FILE_NAME)")
   dt.preferences.write(MODULE_NAME, "output_format", "integer", 1)
   dt.preferences.write(MODULE_NAME, "sigma", "string", "1")
@@ -374,7 +375,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
 
   -- denoise
   if extra.denoise_enabled then
-    if extra.nind_denoise == "" then
+    if extra.denoise_dir == "" then
       dt.print(_("ERROR: nind-denoise command not configured"))
       return
     end
@@ -389,6 +390,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
 
     -- build the denoise command string
     dt.print(_("denoising ")..df.get_basename(temp_name).." ...")
+    run_cmd = extra.nind_denoise.." --no_deblur --tiff-input -o "..df.sanitize_filename(denoise_name).." "..df.sanitize_filename(temp_name)
     run_cmd = extra.nind_denoise.." --input "..df.sanitize_filename(temp_name).." --output "..df.sanitize_filename(denoise_name)
 
     dt.print_log(run_cmd)
@@ -511,7 +513,10 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
   end
 
   -- read parameters
-  extra.nind_denoise  = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
+  extra.denoise_dir   = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
+  extra.nind_denoise  = "python3 " .. extra.denoise_dir .. "/src/denoise.py"
+  extra.denoise_dir   = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
+  extra.denoise_cmd   = "python3 " .. extra.denoise_dir .. "/src/denoise.py"
   extra.gmic          = dt.preferences.read(MODULE_NAME, "gmic_exe", "string")
   extra.gmic          = df.sanitize_filename(extra.gmic)
   extra.exiftool      = dt.preferences.read(MODULE_NAME, "exiftool_exe", "string")
@@ -554,8 +559,8 @@ dt.register_storage("exp2NDRL", _("nind-denoise RL"), store, nil, supported, ini
 
 -- register the new preferences -----------------------------------------------
 dt.preferences.register(MODULE_NAME, "nind_denoise", "string",
-_ ("nind_denoise command (NRL)"),
-_ ("command line to execute NIND-denoise (include --model-path"), "")
+_ ("nind_denoise directory (NRL)"),
+_ ("directory containing the nind-denoise repository"), "")
 
 dt.preferences.register(MODULE_NAME, "gmic_exe", "file",
 _ ("GMic executable (NRL)"),

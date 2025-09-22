@@ -8,6 +8,7 @@ Denoise the raw image denoted by <filename> and save the results.
 Usage:
     denoise.py [-o <outpath> | --output-path=<outpath>] [-e <e> | --extension=<e>]
                 [-d <darktable> | --dt=<darktable>] [-g <gmic> | --gmic=<gmic>] [ -q <q> | --quality=<q>]
+                 [-v | --verbose] [--tiff-input ] <raw_image>
                 [--nightmode ] [ --no_deblur ] [ --debug ] [ --sigma=<sigma> ] [ --iterations=<iter> ]
                 [-v | --verbose] <raw_image>
     denoise.py (help | -h | --help)
@@ -23,6 +24,7 @@ Options:
   --nightmode                           Use for very dark images. Normalizes brightness (exposure, tonequal) before denoise [default: False].
   --no_deblur                           Do not perform RL-deblur [default: false].
   --debug                               Keep intermedia files.
+   --tiff-input                         Use when input is already a TIFF from stage 1; This is for use by the lua plugin
   --sigma=<sigma>                       sigma to use for RL-deblur. Acceptable values are ....? [default: 1].
   --iterations=<iter>                   Number of iterations to perform during RL-deblur. Suggest keeping this to ...? [default: 10].
 
@@ -354,14 +356,17 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     else:
         rldeblur = True
 
-    if not os.path.exists(cmd_darktable):
+    if not os.path.exists(cmd_darktable) and not args.get('--tiff-input'):
         print("\nError: darktable-cli (" + cmd_darktable + ") does not exist or not accessible.")
         raise FileNotFoundError
 
-    good_file = check_good_input(_input_path, valid_extensions) or check_good_input(input_xmp, '.xmp')
+    good_file = ((args.get('--tiff-input') and check_good_input(_input_path, ['.tif', '.tiff'])) 
+                or check_good_input(_input_path, valid_extensions)) or check_good_input(input_xmp, '.xmp')
     if not good_file:
         print("The input raw-image or its XMP were not found, or are not valid.")
+
         raise FileNotFoundError
+    
 
     i = 1
     while outpath.exists():
@@ -371,23 +376,28 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
             print("\nError: too many files with the same name already exists. Go look at: ", outpath.parent)
             raise FileExistsError
 
-    parse_darktable_history_stack(input_xmp, config=config, verbose=verbose)
+    if not _args.get('--tiff-input'):
+        parse_darktable_history_stack(input_xmp, config=config, verbose=verbose)
 
-    if os.path.exists(stage_one_output_filepath):
-        os.remove(stage_one_output_filepath)
+        if os.path.exists(stage_one_output_filepath):
+            os.remove(stage_one_output_filepath)
 
-    subprocess.run([cmd_darktable,
-                    _input_path,
-                    input_xmp.with_suffix('.s1.xmp'),
-                    stage_one_output_filepath.name,
-                    '--apply-custom-presets', 'false',
-                    '--core', '--conf', 'plugins/imageio/format/tiff/bpp=32'
-                    ],
-                   cwd=outpath.parent, check=True)
+        subprocess.run([cmd_darktable,
+                        _input_path,
+                        input_xmp.with_suffix('.s1.xmp'),
+                        stage_one_output_filepath.name,
+                        '--apply-custom-presets', 'false',
+                        '--core', '--conf', 'plugins/imageio/format/tiff/bpp=32'
+                        ],
+                       cwd=outpath.parent, check=True)
 
-    if not os.path.exists(os.path.abspath(stage_one_output_filepath)):
-        print("Error: first-stage export not found: ", stage_one_output_filepath)
-        raise ChildProcessError
+        if not os.path.exists(os.path.abspath(stage_one_output_filepath)):
+            print("Error: first-stage export not found: ", stage_one_output_filepath)
+            raise ChildProcessError
+    else:
+        stage_one_output_filepath = _input_path
+        parse_darktable_history_stack(input_xmp, config=config, verbose=verbose)
+    
 
     # ========== call nind-denoise ==========
     # 32-bit TIFF (instead of 16-bit) is needed to retain highlight reconstruction data from stage 1
