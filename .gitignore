@@ -10,5 +10,8 @@
 [Ss]cripts
 pyvenv.cfg
 .venv
+.idea
+.pytest_cache
+*.egg-info
 pip-selfcheck.json
-
+.**/*/*.pyc
