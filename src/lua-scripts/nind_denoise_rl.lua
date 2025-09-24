@@ -43,6 +43,14 @@ local dtsys = require "lib/dtutils.system"
 -- module name
 local MODULE_NAME = "nind_denoise_rl"
 
+-- Error codes
+local NDERR = {
+  CMD_FAILURE = 1001,
+  MISSING_BINARY = 1002,
+  TEMP_FILE = 1003,
+  VAR_SUBSTITUTION = 1004
+}
+
 -- check API version
 du.check_min_api_version("7.0.0", MODULE_NAME)
 
@@ -64,18 +72,46 @@ local function _(msgid)
   return gettext.dgettext(MODULE_NAME, msgid)
 end
 
--- initialize module preferences
-if not dt.preferences.read(MODULE_NAME, "initialized", "bool") then
-  local default_dir = dt.configuration.running_os == "windows" and "C:\\nind_denoise" or (os.getenv("HOME") or "") .. "/nind_denoise"
-  dt.preferences.write(MODULE_NAME, "nind_denoise", "string", default_dir)
-  dt.preferences.write(MODULE_NAME, "output_path", "string", "$(FILE_FOLDER)/darktable_exported/$(FILE_NAME)")
-  dt.preferences.write(MODULE_NAME, "output_format", "integer", 1)
-  dt.preferences.write(MODULE_NAME, "sigma", "string", "1")
-  dt.preferences.write(MODULE_NAME, "iterations", "string", "20")
-  dt.preferences.write(MODULE_NAME, "jpg_quality", "string", "95")
-  dt.preferences.write(MODULE_NAME, "initialized", "bool", true)
+-- initialize conf keys with legacy preference migration
+local function migrate_pref(key, type, default)
+  if dt.preferences.exists(MODULE_NAME, key) then
+    local value = dt.preferences.read(MODULE_NAME, key, type)
+    dt.preferences.delete(MODULE_NAME, key)
+    return value
+  end
+  return default
 end
 
+local default_dir = dt.configuration.running_os == "windows" and "C:\\nind_denoise" or (os.getenv("HOME") or "") .. "/nind_denoise"
+NDRL.conf = {
+  nind_denoise = dt.conf_key(MODULE_NAME, "nind_denoise", "string", migrate_pref("nind_denoise", "string", default_dir)),
+  output_path = dt.conf_key(MODULE_NAME, "output_path", "string", migrate_pref("output_path", "string", "$(FILE_FOLDER)/darktable_exported/$(FILE_NAME)")),
+  output_format = dt.conf_key(MODULE_NAME, "output_format", "integer", migrate_pref("output_format", "integer", 1)),
+  sigma = dt.conf_key(MODULE_NAME, "sigma", "string", migrate_pref("sigma", "string", "1")),
+  iterations = dt.conf_key(MODULE_NAME, "iterations", "string", migrate_pref("iterations", "string", "20")),
+  jpg_quality = dt.conf_key(MODULE_NAME, "jpg_quality", "string", migrate_pref("jpg_quality", "string", "95")),
+  denoise_enabled = dt.conf_key(MODULE_NAME, "denoise_enabled", "bool", false),
+  rl_deblur_enabled = dt.conf_key(MODULE_NAME, "rl_deblur_enabled", "bool", false)
+  debug_mode = dt.conf_key(MODULE_NAME, "debug_mode", "bool", false)
+}
+
+-- conf observers
+local function create_observers()
+  NDRL.conf.debug_mode:add_observer("value", function()
+    dt.log_info("Debug mode " .. (NDRL.conf.debug_mode.value and "enabled" or "disabled"))
+  end)
+  NDRL.conf.output_format:add_observer("value", function()
+    output_format_changed()
+  end)
+
+  NDRL.conf.denoise_enabled:add_observer("value", function()
+    denoise_rldeblur_toggled()
+  end)
+
+  NDRL.conf.rl_deblur_enabled:add_observer("value", function()
+    denoise_rldeblur_toggled()
+  end)
+end
 
 -- namespace variable
 local NDRL = {};
@@ -166,10 +202,10 @@ NDRL = {
   output_folder_selector = dt.new_widget("file_chooser_button") {
     title = _("select output folder"),
     tooltip = _("select output folder"),
-    value = dt.preferences.read(MODULE_NAME, "output_folder", "string"),
+    value = NDRL.conf.output_path.value,
     is_directory = true,
     changed_callback = function(self)
-      dt.preferences.write(MODULE_NAME, "output_folder", "string", self.value)
+      NDRL.conf.output_path.value = self.value
     end
   },
 
@@ -179,7 +215,10 @@ NDRL = {
     selected = 1,
     _("JPG"),
     _("TIFF"),
-    changed_callback = function(self) output_format_changed() end
+    changed_callback = function(self)
+      NDRL.conf.output_format.value = self.selected
+      output_format_changed()
+    end
   },
 
   jpg_quality_slider = dt.new_widget("slider") {
@@ -197,13 +236,19 @@ NDRL = {
   denoise_chkbox = dt.new_widget("check_button") {
     label = _("apply nind-denoise"),
     tooltip = _("apply nind-denoise"),
-    clicked_callback = function(self) denoise_rldeblur_toggled() end
+    clicked_callback = function(self)
+      NDRL.conf.denoise_enabled.value = self.value
+      denoise_rldeblur_toggled()
+    end
   },
 
   rl_deblur_chkbox = dt.new_widget("check_button") {
     label = _("apply RL deblur"),
     tooltip = _("apply GMic's Richardson-Lucy deblur/sharpening"),
-    clicked_callback = function(self) denoise_rldeblur_toggled() end
+    clicked_callback = function(self)
+      NDRL.conf.rl_deblur_enabled.value = self.value
+      denoise_rldeblur_toggled()
+    end
   },
 
   sigma_slider = dt.new_widget("slider") {
@@ -311,9 +356,8 @@ local function substitute_list(str)
     if NDRL.substitutes[var] then
       str = string.gsub(str, "%$%("..var.."%)", NDRL.substitutes[var])
     else
-      dt.print_error(_("unrecognized variable " .. var))
-      dt.print(_("unknown variable " .. var .. ", aborting..."))
-      return -1
+      dt.log_error(string.format("[NDERR-%d] Unrecognized variable substitution: %s", NDERR.VAR_SUBSTITUTION, var))
+      return NDERR.VAR_SUBSTITUTION
     end
   end
   return str
@@ -334,6 +378,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     return false
   end
 
+  local sidecar = image.sidecar
   local org_temp_name = temp_name
   local to_delete = {}
   table.insert(to_delete, temp_name)
@@ -342,6 +387,11 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
 
   -- determine output format
   local file_ext = img_format.extension   -- tiff only
+
+  if (extra.denoise_enabled or extra.rl_deblur_enabled) and not extra.output_format then
+    dt.log_error(string.format("[NDERR-%d] Invalid output format configuration", NDERR.CMD_FAILURE))
+    return false
+  end
 
   if extra.denoise_enabled or extra.rl_deblur_enabled then
     if extra.output_format == 1 then
@@ -361,9 +411,9 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     build_substitution_list(image, img_num, datetime, USER, PICTURES, HOME, DESKTOP)
 	  output_path = substitute_list(output_path)
 
-	  if output_path == -1 then
-	    dt.print(_("ERROR: unable to do variable substitution"))
-	    return
+	  if output_path == NDERR.VAR_SUBSTITUTION then
+	    dt.log_error(string.format("[NDERR-%d] Variable substitution failed", NDERR.VAR_SUBSTITUTION))
+	    return false
 	  end
 
     clear_substitute_list()
@@ -376,7 +426,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
   -- denoise
   if extra.denoise_enabled then
     if extra.denoise_dir == "" then
-      dt.print(_("ERROR: nind-denoise command not configured"))
+      dt.log_error(string.format("[NDERR-%d] nind-denoise directory not configured", NDERR.MISSING_BINARY))
       return
     end
 
@@ -386,25 +436,71 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
       tmp_file_ext = 'tif'
     end
 
-    local denoise_name = df.create_unique_filename(df.get_path(temp_name)..PS..df.get_basename(temp_name).."_denoised."..tmp_file_ext)
+    local denoise_name = df.create_unique_filename(df.get_path(temp_name)..df.get_basename(temp_name).."_denoised."..tmp_file_ext)
 
-    -- build the denoise command string
-    dt.print(_("denoising ")..df.get_basename(temp_name).." ...")
-    run_cmd = extra.nind_denoise.." --no_deblur --tiff-input -o "..df.sanitize_filename(denoise_name).." "..df.sanitize_filename(temp_name)
-    run_cmd = extra.nind_denoise.." --input "..df.sanitize_filename(temp_name).." --output "..df.sanitize_filename(denoise_name)
+    -- Build sanitized command chain
+    local denoise_cmd = extra.nind_denoise.." --tiff-input -o - --sidecar "..
+                      dtsys.escape_shell_arg(sidecar).." "..
+                      dtsys.escape_shell_arg(temp_name)
 
-    dt.print_log(run_cmd)
+    -- Create OS-agnostic pipe handler
+    local function create_pipe_handler()
+      local shell_cmd = {}
+      if dt.configuration.running_os == "windows" then
+        shell_cmd.pipe = " ^| "
+        shell_cmd.wrapper = "cmd.exe /C "
+      else
+        shell_cmd.pipe = " | "
+        shell_cmd.wrapper = "/bin/sh -c "
+      end
+      return shell_cmd
+    end
 
-    result = dtsys.external_command(run_cmd)
+    local pipe = create_pipe_handler()
+    local gmic_operation = " -deblur_richardsonlucy "..
+                          dtsys.escape_shell_arg(extra.sigma_str)..","..
+                          dtsys.escape_shell_arg(extra.iterations_str)..",1"
 
-    temp_name = denoise_name
-    table.insert(to_delete, temp_name)
+    local function handle_command_error(err)
+      dt.log_error(string.format("[NDERR-%d] Command failed: %s", NDERR.CMD_FAILURE, err))
+      if NDRL.conf.debug_mode.value then
+        dt.log_error(debug.traceback())
+      end
+      return false
+    end
+    
+    run_cmd = pipe.wrapper..dtsys.escape_shell_arg(denoise_cmd)
+    if extra.rl_deblur_enabled then
+      run_cmd = run_cmd .. pipe.pipe .. dtsys.escape_shell_arg(extra.gmic)..
+                " - "..gmic_operation.." cut 0,255 round -o -,"..
+                dtsys.escape_shell_arg(extra.jpg_quality_str)
+    end
 
-    local f = io.open(denoise_name, "r")
-    if f ~= nil then
-      io.close(f)
+    -- Add format conversion if needed
+    if extra.output_format == 1 then
+      run_cmd = run_cmd .. " | magick - "..dtsys.escape_shell_arg(new_name)
     else
-      dt.print(_("Error denoising"))
+      run_cmd = run_cmd .. " > "..dtsys.escape_shell_arg(new_name)
+    end
+
+    dt.print_log("Piped command: "..run_cmd)
+    
+    -- Async execution with progress
+    local progress = dt.gui.create_job(_("Processing image"), true)
+    local success, result = xpcall(function()
+      return dtsys.async_command({
+        command = run_cmd,
+        timeout = 300,  -- 5 minute timeout
+        progress_callback = function(percentage)
+          progress.percent = percentage
+          if progress.canceled then return false end
+          return true
+        end
+      })
+    end, handle_command_error)
+
+    if not result then
+      dt.log_error(_("[NDERR-1001] Processing failed or canceled"))
       return false
     end
   end
@@ -413,7 +509,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
   -- RL deblur
   if extra.rl_deblur_enabled then
     if extra.gmic == "" then
-      dt.print(_("ERROR: GMic executable not configured"))
+      dt.log_error(string.format("[NDERR-%d] GMic executable not configured", NDERR.MISSING_BINARY))
       return false
     end
 
@@ -431,7 +527,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
       options = " -/ 256 "..options
     end
 
-    dt.print(_("applying RL-deblur to image ")..df.sanitize_filename(tmp_rl_name).." ...")
+    dt.log_info(_("Applying RL-deblur to image ")..df.sanitize_filename(tmp_rl_name))
     run_cmd = extra.gmic.." "..df.sanitize_filename(temp_name)..gmic_operation..
               options.." -o "..df.sanitize_filename(tmp_rl_name)..","..extra.jpg_quality_str
 
@@ -440,9 +536,12 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     temp_name = tmp_rl_name
     table.insert(to_delete, temp_name)
 
-    result = dtsys.external_command(run_cmd)
-    if result ~= 0 then
-      dt.print(_("Error applying RL-deblur"))
+    local success, result = xpcall(function()
+      return dtsys.external_command(run_cmd)
+    end, handle_command_error)
+    
+    if not success or result ~= 0 then
+      dt.log_error(string.format("[NDERR-%d] GMic processing failed", NDERR.CMD_FAILURE))
       return false
     end
   end
@@ -455,7 +554,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
 
     result = dtsys.external_command(run_cmd)
     if result ~= 0 then
-      dt.print(_("error copying exif"))
+      dt.log_error(string.format("[NDERR-%d] EXIF copy failed: %s", NDERR.CMD_FAILURE, err))
       return false
     end
   end
@@ -473,7 +572,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     os.remove(to_delete[i])
   end
 
-  dt.print(_("finished exporting image ")..new_name)
+  dt.log_info(_("Successfully exported image: ")..new_name)
 end
 
 
@@ -498,7 +597,14 @@ local storage_widget = dt.new_widget("box"){
   NDRL.denoise_chkbox,
   NDRL.rl_deblur_chkbox,
   NDRL.sigma_slider,
-  NDRL.iterations_slider
+  NDRL.iterations_slider,
+  dt.new_widget("check_button") {
+    label = _("Debug Mode"),
+    tooltip = _("Enable verbose logging and stack traces"),
+    clicked_callback = function(self)
+      NDRL.conf.debug_mode.value = self.value
+    end
+  }
 }
 
 
@@ -514,9 +620,16 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
 
   -- read parameters
   extra.denoise_dir   = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
-  extra.nind_denoise  = "python3 " .. extra.denoise_dir .. "/src/denoise.py"
-  extra.denoise_dir   = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
-  extra.denoise_cmd   = "python3 " .. extra.denoise_dir .. "/src/denoise.py"
+
+  -- build venv activation command based on OS
+  local activate_cmd = ""
+  if dt.configuration.running_os == "windows" then
+    activate_cmd = "call \"" .. extra.denoise_dir .. "\\.venv\\Scripts\\activate.bat\" && "
+  else
+    activate_cmd = "source \"" .. extra.denoise_dir .. "/.venv/bin/activate\" && "
+  end
+
+  extra.nind_denoise  = activate_cmd .. "python3 \"" .. extra.denoise_dir .. "/src/denoise.py\""
   extra.gmic          = dt.preferences.read(MODULE_NAME, "gmic_exe", "string")
   extra.gmic          = df.sanitize_filename(extra.gmic)
   extra.exiftool      = dt.preferences.read(MODULE_NAME, "exiftool_exe", "string")
@@ -543,13 +656,7 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
   end
 
   -- save preferences
-  dt.preferences.write(MODULE_NAME, "output_path", "string", extra.output_path)
-  dt.preferences.write(MODULE_NAME, "output_format", "integer", extra.output_format)
-  dt.preferences.write(MODULE_NAME, "jpg_quality", "string", extra.jpg_quality_str)
-  dt.preferences.write(MODULE_NAME, "denoise_enabled", "bool", extra.denoise_enabled)
-  dt.preferences.write(MODULE_NAME, "rl_deblur_enabled", "bool", extra.rl_deblur_enabled)
-  dt.preferences.write(MODULE_NAME, "sigma", "string", extra.sigma_str)
-  dt.preferences.write(MODULE_NAME, "iterations", "string", extra.iterations_str)
+  -- Preferences now managed through dt.conf observers
 
 end
 
@@ -570,26 +677,26 @@ dt.preferences.register(MODULE_NAME, "exiftool_exe", "file",
 _ ("exiftool executable (NRL)"),
 _ ("select executable for exiftool command line "), "")
 
--- set output_folder_path to the last used value at startup ------------------
-NDRL.output_folder_path.text = dt.preferences.read(MODULE_NAME, "output_path", "string")
+dt.preferences.register(MODULE_NAME, "debug_mode", "bool",
+_ ("Enable debug mode (NRL)"),
+_ ("Enable verbose logging and stack traces"), false)
 
--- set output format
-NDRL.output_format.selected = dt.preferences.read(MODULE_NAME, "output_format", "integer")
-NDRL.jpg_quality_slider.value = dt.preferences.read(MODULE_NAME, "jpg_quality", "float")
+-- Initialize UI from conf keys
+NDRL.output_folder_path.text = NDRL.conf.output_path.value
+NDRL.output_format.selected = NDRL.conf.output_format.value
+NDRL.jpg_quality_slider.value = tonumber(NDRL.conf.jpg_quality.value)
+NDRL.denoise_chkbox.value = NDRL.conf.denoise_enabled.value
+NDRL.rl_deblur_chkbox.value = NDRL.conf.rl_deblur_enabled.value
+NDRL.sigma_slider.value = tonumber(NDRL.conf.sigma.value)
+NDRL.iterations_slider.value = tonumber(NDRL.conf.iterations.value)
 output_format_changed()
-
--- set denoise and deblur options
-NDRL.denoise_chkbox.value = dt.preferences.read(MODULE_NAME, "denoise_enabled", "bool")
-NDRL.rl_deblur_chkbox.value = dt.preferences.read(MODULE_NAME, "rl_deblur_enabled", "bool")
 denoise_rldeblur_toggled()
 
--- set sliders to the last used value at startup ------------------------------
-NDRL.sigma_slider.value = dt.preferences.read(MODULE_NAME, "sigma", "float")
-NDRL.iterations_slider.value = dt.preferences.read(MODULE_NAME, "iterations", "float")
 
+-- create observers
+create_observers()
 
 -- script_manager integration
-
 script_data.destroy = destroy
 
 return script_data
