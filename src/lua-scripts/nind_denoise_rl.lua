@@ -116,15 +116,17 @@ end
 -- namespace variable
 local NDRL = {};
 
-local function denoise_rldeblur_toggled()
-  NDRL.sigma_slider.sensitive = NDRL.rl_deblur_chkbox.value
-  NDRL.iterations_slider.sensitive = NDRL.rl_deblur_chkbox.value
-
-  -- hide the output format if neither checkboxes selected
-  local passthrough = NDRL.rl_deblur_chkbox.value == false and NDRL.denoise_chkbox.value == false
+NDRL.conf.rl_deblur_enabled:add_observer("value", function()
+  local passthrough = not NDRL.conf.rl_deblur_enabled.value and not NDRL.conf.denoise_enabled.value
   NDRL.output_format.visible = not passthrough
-  NDRL.jpg_quality_slider.visible = not passthrough
-end
+  NDRL.jpg_quality_slider.visible = NDRL.output_format.selected == 1 and not passthrough
+end)
+
+NDRL.conf.denoise_enabled:add_observer("value", function()
+  local passthrough = not NDRL.conf.rl_deblur_enabled.value and not NDRL.conf.denoise_enabled.value
+  NDRL.output_format.visible = not passthrough
+  NDRL.jpg_quality_slider.visible = NDRL.output_format.selected == 1 and not passthrough
+end)
 
 
 local function output_format_changed()
@@ -221,37 +223,40 @@ NDRL = {
     end
   },
 
-  jpg_quality_slider = dt.new_widget("slider") {
+  jpg_quality_slider = dt.widget("slider") {
     label = _("output jpg quality"),
-    tooltip = _("quality of the output jpg file"),
+    tooltip = _("Quality of the output JPEG file (70-100)"),
     soft_min = 70,
     soft_max = 100,
     hard_min = 70,
     hard_max = 100,
     step = 2,
     digits = 0,
-    value = 95.0,
+    value = tonumber(NDRL.conf.jpg_quality.value),
+    on_value_changed = function(self)
+      NDRL.conf.jpg_quality.value = tostring(self.value)
+    end
   },
 
-  denoise_chkbox = dt.new_widget("check_button") {
+  denoise_switch = dt.widget("switch") {
     label = _("apply nind-denoise"),
-    tooltip = _("apply nind-denoise"),
-    clicked_callback = function(self)
-      NDRL.conf.denoise_enabled.value = self.value
-      denoise_rldeblur_toggled()
+    tooltip = _("enable noise reduction processing"),
+    active = NDRL.conf.denoise_enabled,
+    on_activate = function(self)
+      NDRL.conf.denoise_enabled.value = self.active
     end
   },
 
-  rl_deblur_chkbox = dt.new_widget("check_button") {
+  rl_deblur_switch = dt.widget("switch") {
     label = _("apply RL deblur"),
-    tooltip = _("apply GMic's Richardson-Lucy deblur/sharpening"),
-    clicked_callback = function(self)
-      NDRL.conf.rl_deblur_enabled.value = self.value
-      denoise_rldeblur_toggled()
+    tooltip = _("enable Richardson-Lucy sharpening"),
+    active = NDRL.conf.rl_deblur_enabled,
+    on_activate = function(self)
+      NDRL.conf.rl_deblur_enabled.value = self.active
     end
   },
 
-  sigma_slider = dt.new_widget("slider") {
+  sigma_slider = dt.widget("slider") {
     label = _("sigma"),
     tooltip = _("controls the width of the blur that's applied"),
     soft_min = 0.3,
@@ -260,10 +265,14 @@ NDRL = {
     hard_max = 3.0,
     step = 0.05,
     digits = 2,
-    value = 1.0
+    value = tonumber(NDRL.conf.sigma.value),
+    sensitive = NDRL.conf.rl_deblur_enabled,
+    on_value_changed = function(self)
+      NDRL.conf.sigma.value = tostring(self.value)
+    end
   },
 
-  iterations_slider = dt.new_widget("slider") {
+  iterations_slider = dt.widget("slider") {
     label = _("iterations"),
     tooltip = _("increase for better sharpening, but slower"),
     soft_min = 0,
@@ -272,7 +281,11 @@ NDRL = {
     hard_max = 100,
     step = 5,
     digits = 0,
-    value = 10.0
+    value = tonumber(NDRL.conf.iterations.value),
+    sensitive = NDRL.conf.rl_deblur_enabled,
+    on_value_changed = function(self)
+      NDRL.conf.iterations.value = tostring(self.value)
+    end
   }
 }
 
@@ -588,16 +601,22 @@ end
 
 
 -- new widgets ----------------------------------------------------------------
-local storage_widget = dt.new_widget("box"){
+local storage_widget = dt.widget("box") {
   orientation = "vertical",
-  NDRL.output_folder_path,
-  NDRL.output_folder_selector,
-  NDRL.output_format,
-  NDRL.jpg_quality_slider,
-  NDRL.denoise_chkbox,
-  NDRL.rl_deblur_chkbox,
-  NDRL.sigma_slider,
-  NDRL.iterations_slider,
+  dt.widget("section") {
+    label = _("Processing Options"),
+    NDRL.denoise_switch,
+    NDRL.rl_deblur_switch,
+    NDRL.sigma_slider,
+    NDRL.iterations_slider
+  },
+  dt.widget("section") {
+    label = _("Output Settings"),
+    NDRL.output_folder_path,
+    NDRL.output_folder_selector,
+    NDRL.output_format,
+    NDRL.jpg_quality_slider
+  },
   dt.new_widget("check_button") {
     label = _("Debug Mode"),
     tooltip = _("Enable verbose logging and stack traces"),
