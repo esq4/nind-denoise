@@ -48,7 +48,8 @@ local NDERR = {
   CMD_FAILURE = 1001,
   MISSING_BINARY = 1002,
   TEMP_FILE = 1003,
-  VAR_SUBSTITUTION = 1004
+  VAR_SUBSTITUTION = 1004,
+  METADATA_FAILURE = 1005  -- Test-visible error code
 }
 
 -- check API version
@@ -521,9 +522,10 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
 
   -- RL deblur
   if extra.rl_deblur_enabled then
-    if extra.gmic == "" then
-      dt.log_error(string.format("[NDERR-%d] GMic executable not configured", NDERR.MISSING_BINARY))
-      return false
+    if not gmic_valid then
+      dt.print_error(_("[NDERR-1002] GMic validation failed - processing disabled"))
+      extra.rl_deblur_enabled = false
+      dt.print(_("Falling back to basic processing without RL-deblur"))
     end
 
     local gmic_operation = " -deblur_richardsonlucy "..extra.sigma_str..","..extra.iterations_str..",1"
@@ -560,14 +562,29 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
   end
 
 
-  -- copy exif
-  if extra.exiftool ~= "" then
-    dt.print(_("copying EXIF to ")..temp_name.." ...")
-    run_cmd = extra.exiftool.." -writeMode cg -TagsFromFile "..df.sanitize_filename(org_temp_name).." -all:all -overwrite_original "..df.sanitize_filename(temp_name)
-
-    result = dtsys.external_command(run_cmd)
-    if result ~= 0 then
-      dt.log_error(string.format("[NDERR-%d] EXIF copy failed: %s", NDERR.CMD_FAILURE, err))
+  -- Preserve metadata using darktable API
+  local success, err = pcall(function()
+    image:export_metadata(new_name, "XMP")
+  end)
+  
+  if not success then
+    dt.log_warning(_("Metadata API failed, falling back to sidecar copy"))
+    local sidecar_src = image.sidecar
+    local sidecar_dest = new_name:gsub("%.[^%.]+$", ".xmp")
+    
+    if df.file_exists(sidecar_src) then
+      local copy_success, copy_err = os.rename(
+        df.sanitize_filename(sidecar_src),
+        df.sanitize_filename(sidecar_dest)
+      )
+      if not copy_success then
+        dt.log_error(string.format("[NDERR-%d] Metadata preservation failed: %s",
+          NDERR.METADATA_FAILURE, copy_err))
+        return false
+      end
+    else
+      dt.log_error(string.format("[NDERR-%d] Missing sidecar for metadata fallback",
+        NDERR.METADATA_FAILURE))
       return false
     end
   end
@@ -638,9 +655,73 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
   end
 
   -- read parameters
-  extra.denoise_dir   = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
+  -- Validate dependencies
+  local function validate_gmic_version(gmic_path)
+    local cmd = string.format('%s --version 2>&1', dtsys.escape_shell_arg(gmic_path))
+    local result, output = dtsys.external_command(cmd)
+    if result ~= 0 then return false, "GMic not executable" end
+    local version = string.match(output, "G'MIC (%d+%.%d+)")
+    return version and tonumber(version) >= 3.0, "Requires GMic ≥3.0"
+  end
 
-  -- build venv activation command based on OS
+  local function validate_denoise_env(denoise_dir)
+    local venv_check = dt.configuration.running_os == "windows"
+      and "Scripts\\python.exe -c \"import nind_denoise\""
+      or "bin/python3 -c \"import nind_denoise\""
+    local cmd = string.format('"%s/%s/.venv/%s"',
+      denoise_dir, venv_check)
+    return dtsys.external_command(cmd) == 0
+  end
+
+  -- Validate preferences
+  dt.preferences.register_validation(MODULE_NAME, "gmic_exe", function(path)
+    if path == "" then return false end
+    local valid, msg = validate_gmic_version(path)
+    if not valid then
+      dt.print_error(_("GMic validation failed: ")..msg)
+    end
+    return valid
+  end)
+
+  dt.preferences.register_validation(MODULE_NAME, "nind_denoise", function(path)
+    if not df.file_exists(path.."/src/denoise.py") then
+      dt.print_error(_("Missing denoise.py in directory"))
+      return false
+    end
+    if not validate_denoise_env(path) then
+      dt.print_error(_("Invalid Python environment - run 'make venv' in nind-denoise"))
+      return false
+    end
+    return true
+  end)
+
+  extra.denoise_dir = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
+  if not validate_denoise_env(extra.denoise_dir) then
+    local msg = _("Invalid Python environment in nind-denoise directory")
+    show_error_dialog(_("Environment Error"), msg, {
+      _("Run 'make venv' in nind-denoise directory"),
+      _("Verify Python 3.8+ is installed"),
+      _("Check directory permissions")
+    })
+    dt.print_error("[NDERR-1002] "..msg)
+    return false
+  end
+
+  -- Verify GMic version
+  local gmic_path = dt.preferences.read(MODULE_NAME, "gmic_exe", "string")
+  local gmic_valid, gmic_msg = validate_gmic_version(gmic_path)
+  if not gmic_valid then
+    local msg = string.format("%s: %s", _("GMic validation failed"), gmic_msg)
+    show_error_dialog(_("GMic Error"), msg, {
+      _("Download GMic 3.0+ from gmic.eu"),
+      _("Verify executable path in Preferences"),
+      _("Check system PATH environment variable")
+    })
+    dt.print_error("[NDERR-1002] "..msg)
+    return false
+  end
+
+  -- Build venv activation command based on OS
   local activate_cmd = ""
   if dt.configuration.running_os == "windows" then
     activate_cmd = "call \"" .. extra.denoise_dir .. "\\.venv\\Scripts\\activate.bat\" && "
@@ -692,9 +773,7 @@ dt.preferences.register(MODULE_NAME, "gmic_exe", "file",
 _ ("GMic executable (NRL)"),
 _ ("select executable for GMic command line "), "")
 
-dt.preferences.register(MODULE_NAME, "exiftool_exe", "file",
-_ ("exiftool executable (NRL)"),
-_ ("select executable for exiftool command line "), "")
+-- Remove exiftool preference registration
 
 dt.preferences.register(MODULE_NAME, "debug_mode", "bool",
 _ ("Enable debug mode (NRL)"),
