@@ -21,8 +21,9 @@
     Images exported will be denoised with NIND-denoise then sharpened with GMic's RL deblur
 
   REQUIRED SOFTWARE
-    NIND-denoise: https://github.com/trougnouf/nind-denoise
+    NIND-denoise: https://github.com/commreteris/nind_denoise
     GMic command line interface (CLI) https://gmic.eu/download.shtml
+    uv: https://docs.astral.sh/uv/getting-started/installation/ | https://github.com/astral-sh/uv/releases
     exiftool to copy EXIF to the final image
 
   USAGE
@@ -89,10 +90,10 @@ NDRL.conf = {
   output_path = dt.conf_key(MODULE_NAME, "output_path", "string", migrate_pref("output_path", "string", "$(FILE_FOLDER)/darktable_exported/$(FILE_NAME)")),
   output_format = dt.conf_key(MODULE_NAME, "output_format", "integer", migrate_pref("output_format", "integer", 1)),
   sigma = dt.conf_key(MODULE_NAME, "sigma", "string", migrate_pref("sigma", "string", "1")),
-  iterations = dt.conf_key(MODULE_NAME, "iterations", "string", migrate_pref("iterations", "string", "20")),
-  jpg_quality = dt.conf_key(MODULE_NAME, "jpg_quality", "string", migrate_pref("jpg_quality", "string", "95")),
-  denoise_enabled = dt.conf_key(MODULE_NAME, "denoise_enabled", "bool", false),
-  rl_deblur_enabled = dt.conf_key(MODULE_NAME, "rl_deblur_enabled", "bool", false)
+  iterations = dt.conf_key(MODULE_NAME, "iterations", "string", migrate_pref("iterations", "string", "10")),
+  jpg_quality = dt.conf_key(MODULE_NAME, "jpg_quality", "string", migrate_pref("jpg_quality", "string", "90")),
+  denoise_enabled = dt.conf_key(MODULE_NAME, "denoise_enabled", "bool", true),
+  rl_deblur_enabled = dt.conf_key(MODULE_NAME, "rl_deblur_enabled", "bool", true),
   debug_mode = dt.conf_key(MODULE_NAME, "debug_mode", "bool", false)
 }
 
@@ -290,9 +291,6 @@ NDRL = {
   }
 }
 
-
-
-
 -- temp export formats: jpg and tif are supported -----------------------------
 local function supported(storage, img_format)
   -- only accept TIF for lossless intermediate file.
@@ -435,6 +433,13 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
   end
 
   dt.print_log('new_name: '..new_name)
+  
+  -- Debug: Log environment status
+  if NDRL.conf.debug_mode.value then
+    dt.log_info(string.format("Environment Status:\nGMic: %s\nPython: %s",
+      gmic_path,
+      validate_denoise_env(extra.denoise_dir) and "Valid" or "Invalid"))
+  end
 
 
   -- denoise
@@ -615,8 +620,6 @@ end
 
 
 
-
-
 -- new widgets ----------------------------------------------------------------
 local storage_widget = dt.widget("box") {
   orientation = "vertical",
@@ -656,6 +659,37 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
 
   -- read parameters
   -- Validate dependencies
+  local function find_gmic()
+    -- Check configured path first
+    local configured_path = dt.preferences.read(MODULE_NAME, "gmic_exe", "string")
+    if configured_path ~= "" and df.file_exists(configured_path) then
+      return configured_path
+    end
+    
+    -- Auto-discover common locations
+    local candidates = {
+      "/usr/bin/gmic",
+      "/usr/local/bin/gmic",
+      "C:\\Program Files\\gmic\\gmic.exe",
+      "C:\\gmic\\gmic.exe"
+    }
+    
+    -- Check system PATH
+    local path_gmic = dtsys.find_executable("gmic")
+    if path_gmic then table.insert(candidates, 1, path_gmic) end
+
+    for _, path in ipairs(candidates) do
+      if df.file_exists(path) then
+        local valid = validate_gmic_version(path)
+        if valid then
+          dt.preferences.write(MODULE_NAME, "gmic_exe", "string", path)
+          return path
+        end
+      end
+    end
+    return nil
+  end
+
   local function validate_gmic_version(gmic_path)
     local cmd = string.format('%s --version 2>&1', dtsys.escape_shell_arg(gmic_path))
     local result, output = dtsys.external_command(cmd)
@@ -665,6 +699,18 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
   end
 
   local function validate_denoise_env(denoise_dir)
+    -- Auto-create venv if missing
+    local venv_path = denoise_dir..PS..".venv"
+    if not df.file_exists(venv_path) then
+      dt.print(_("Attempting to create Python virtual environment..."))
+      local make_cmd = "cd "..dtsys.escape_shell_arg(denoise_dir).." && make venv"
+      local result = dtsys.external_command(make_cmd)
+      if result ~= 0 then
+        dt.print_error(_("Failed to create virtual environment"))
+        return false
+      end
+    end
+
     local venv_check = dt.configuration.running_os == "windows"
       and "Scripts\\python.exe -c \"import nind_denoise\""
       or "bin/python3 -c \"import nind_denoise\""
@@ -673,27 +719,6 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
     return dtsys.external_command(cmd) == 0
   end
 
-  -- Validate preferences
-  dt.preferences.register_validation(MODULE_NAME, "gmic_exe", function(path)
-    if path == "" then return false end
-    local valid, msg = validate_gmic_version(path)
-    if not valid then
-      dt.print_error(_("GMic validation failed: ")..msg)
-    end
-    return valid
-  end)
-
-  dt.preferences.register_validation(MODULE_NAME, "nind_denoise", function(path)
-    if not df.file_exists(path.."/src/denoise.py") then
-      dt.print_error(_("Missing denoise.py in directory"))
-      return false
-    end
-    if not validate_denoise_env(path) then
-      dt.print_error(_("Invalid Python environment - run 'make venv' in nind-denoise"))
-      return false
-    end
-    return true
-  end)
 
   extra.denoise_dir = dt.preferences.read(MODULE_NAME, "nind_denoise", "string")
   if not validate_denoise_env(extra.denoise_dir) then
@@ -798,6 +823,87 @@ create_observers()
 script_data.destroy = destroy
 
 return script_data
+
+local function autodiscover_denoise_path()
+  -- Check standard locations
+  local candidates = {
+    dt.preferences.read(MODULE_NAME, "nind_denoise", "string"),
+    dt.configuration.config_dir..PS.."nind_denoise",
+    os.getenv("HOME") and os.getenv("HOME").."/nind_denoise" or nil,
+    "C:\\nind_denoise"
+  }
+  
+  for _, path in ipairs(candidates) do
+    if path and df.file_exists(path..PS.."src/denoise.py") then
+      return path
+    end
+  end
+  return nil
+end
+
+local function install_denoise(target_dir)
+  local progress = dt.gui.create_job(_("Installing nind-denoise"), true)
+  
+  -- Try git clone first
+  local clone_cmd = string.format("git clone --progress %s %s", 
+    "https://github.com/commreteris/nind_denoise",
+    dtsys.escape_shell_arg(target_dir))
+  
+  local result = dtsys.async_command({
+    command = clone_cmd,
+    timeout = 600,
+    progress_callback = function(output)
+      if output:match("Receiving objects") then
+        progress.percent = tonumber(output:match("(%d+)%%")) or 0
+      end
+      return not progress.canceled
+    end
+  })
+  
+  -- Fallback to zip download if git fails
+  if result ~= 0 then
+    progress.log(_("Git failed, trying zip download..."))
+    local zip_url = "https://github.com/commreteris/nind_denoise/archive/refs/heads/main.zip"
+    local temp_zip = os.tmpname()..".zip"
+    
+    local wget_cmd = string.format("curl -L %s -o %s && unzip %s -d %s && mv %s/nind-denoise-main/* %s",
+      dtsys.escape_shell_arg(zip_url),
+      dtsys.escape_shell_arg(temp_zip),
+      dtsys.escape_shell_arg(temp_zip),
+      dtsys.escape_shell_arg(target_dir),
+      dtsys.escape_shell_arg(target_dir),
+      dtsys.escape_shell_arg(target_dir)
+    )
+    
+    result = dtsys.async_command({
+      command = wget_cmd,
+      timeout = 600,
+      progress_callback = function(output)
+        if output:match(" %d+%%") then
+          progress.percent = tonumber(output:match(" (%d+)%%")) or 0
+        end
+        return not progress.canceled
+      end
+    })
+  end
+  
+  local result = dtsys.async_command({
+    command = clone_cmd,
+    timeout = 600,
+    progress_callback = function(output)
+      if output:match("Receiving objects") then
+        progress.percent = tonumber(output:match("(%d+)%%")) or 0
+      end
+      return not progress.canceled
+    end
+  })
+  
+  if result == 0 then
+    dt.preferences.write(MODULE_NAME, "nind_denoise", "string", target_dir)
+    return true
+  end
+  return false
+end
 
 -- end of script --------------------------------------------------------------
 
