@@ -386,7 +386,9 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
                         input_xmp.with_suffix('.s1.xmp'),
                         stage_one_output_filepath.name,
                         '--apply-custom-presets', 'false',
-                        '--core', '--conf', 'plugins/imageio/format/tiff/bpp=32'
+                        '--core', 
+                        '--conf', 'plugins/imageio/format/tiff/bpp=32',
+                        '--conf', 'plugins/imageio/format/tiff/compress=0'
                         ],
                        cwd=outpath.parent, check=True)
 
@@ -434,7 +436,10 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
                     stage_two_output_filepath.name,  # image output
                     '--icc-intent', 'PERCEPTUAL', '--icc-type', 'SRGB',
                     '--apply-custom-presets', 'false',
-                    '--core', '--conf', 'plugins/imageio/format/tiff/bpp=16'
+                    '--core',
+                    '--conf', 'plugins/imageio/format/tiff/bpp=16',
+                    '--conf', 'plugins/imageio/format/tiff/compress=0',
+                    '--conf', 'plugins/imageio/format/tiff/pixelformat=FALSE'
                     ],
                    cwd=outpath.parent, check=True)
 
