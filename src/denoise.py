@@ -294,7 +294,7 @@ def get_command_paths(args):
 
     """
     return args["--dt"] if args["--dt"] else (
-        "C:/Program Files/darktable/bin/darktable-cli.exe" if os.name == "nt" else "/usr/bin/darktable-cli"), \
+        "C:/Program Files/darktable/bin/darktable-cli.exe" if os.name == "nt" else "/opt/darktable-dev/bin/darktable-cli"), \
            args["--gmic"] if args["--gmic"] else (
         os.path.join(os.path.expanduser("~\\"), "gmic-3.6.1-cli-win64\\gmic.exe") if os.name == "nt" else "/usr/bin/gmic")
 
