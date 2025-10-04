@@ -8,9 +8,8 @@ Denoise the raw image denoted by <filename> and save the results.
 Usage:
     denoise.py [-o <outpath> | --output-path=<outpath>] [-e <e> | --extension=<e>]
                 [-d <darktable> | --dt=<darktable>] [-g <gmic> | --gmic=<gmic>] [ -q <q> | --quality=<q>]
-                 [-v | --verbose] [--tiff-input ] <raw_image>
                 [--nightmode ] [ --no_deblur ] [ --debug ] [ --sigma=<sigma> ] [ --iterations=<iter> ]
-                [-v | --verbose] <raw_image>
+                [-v | --verbose] [--tiff-input ] <raw_image>
     denoise.py (help | -h | --help)
     denoise.py --version
 
