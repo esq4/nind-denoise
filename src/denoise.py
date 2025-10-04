@@ -461,6 +461,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
 
     if not _args.get('--debug'):
         for intermediate_file in [stage_one_output_filepath,
+                                  stage_one_denoised_filepath,
                                   stage_two_output_filepath,
                                   input_xmp.with_suffix('.s1.xmp'),
                                   input_xmp.with_suffix('.s2.xmp')]:
