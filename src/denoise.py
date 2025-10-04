@@ -9,7 +9,7 @@ Usage:
     denoise.py [-o <outpath> | --output-path=<outpath>] [-e <e> | --extension=<e>]
                 [-d <darktable> | --dt=<darktable>] [-g <gmic> | --gmic=<gmic>] [ -q <q> | --quality=<q>]
                 [--nightmode ] [ --no_deblur ] [ --debug ] [ --sigma=<sigma> ] [ --iterations=<iter> ]
-                [-v | --verbose] [--tiff-input ] [--height=<height>] <raw_image>
+                [-v | --verbose] [--tiff-input ] [--height=<height>] [--copy_num=<N>] <raw_image>
     denoise.py (help | -h | --help)
     denoise.py --version
 
@@ -23,10 +23,11 @@ Options:
   --nightmode                           Use for very dark images. Normalizes brightness (exposure, tonequal) before denoise [default: False].
   --no_deblur                           Do not perform RL-deblur [default: false].
   --debug                               Keep intermedia files.
-   --tiff-input                         Use when input is already a TIFF from stage 1; This is for use by the lua plugin
+  --tiff-input                          Use when input is already a TIFF from stage 1; This is for use by the lua plugin
   --sigma=<sigma>                       sigma to use for RL-deblur. Acceptable values are ....? [default: 1].
   --iterations=<iter>                   Number of iterations to perform during RL-deblur. Suggest keeping this to ...? [default: 10].
   --height=<height>                     Max height
+  --copy_num=<N>                        Image copy number
 
   -v --verbose
   --version                             Show version.
@@ -337,7 +338,18 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     output_dir = get_output_path(_args, _input_path)
     output_extension = get_output_extension(_args)
     outpath = output_dir if output_dir.suffix != '' else (output_dir / _input_path.name).with_suffix(output_extension)
-    input_xmp = _input_path.with_suffix(_input_path.suffix + '.xmp')
+    
+    if _args.get('--copy_num'):
+        copy_number =  ""
+        if 0 < int(_args.get('--copy_num')) < 10:
+            copy_number = "_0" + _args['--copy_num']   
+        elif 9 < int(_args.get('--copy_num')) < 100:
+            copy_number = "_" + _args['--copy_num'] 
+        input_xmp = _input_path.with_stem(_input_path.stem + copy_number).with_suffix(_input_path.suffix + '.xmp')        
+    else:
+        input_xmp = _input_path.with_suffix(_input_path.suffix + '.xmp')        
+    print(input_xmp)
+
     sigma = int(_args['--sigma']) if _args.get('--sigma') else 1
     quality = _args['--quality'] if _args.get('--quality') else "90"
     iteration = _args['--iterations'] if _args.get('--iterations') else "10"
