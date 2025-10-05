@@ -1,0 +1,16 @@
+#!/bin/bash
+if [ $1 ] ; then
+  praw=$1
+else
+  read -p 'path to RAW: ' praw
+fi
+if [ $2 ] ; then
+  num=$2
+else
+  read -p 'copy number: ' num
+fi
+if [ ! $num ] ; then
+  num="0"
+fi
+source /home/a/nind-denoise/.venv/bin/activate
+python3 /home/a/nind-denoise/src/denoise.py --height=2442 --copy_num=$num -q 97 -o /media/a/photos/foto/0out/ $praw
