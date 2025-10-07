@@ -106,7 +106,7 @@ For more information on Darktable Lua scripts, see the [Darktable user manual](h
    - Optionally set the exiftool executable path for EXIF metadata copying
 3. Select one or more images in the lighttable
 4. From "export selected", choose "NIND-denoise RL" as the target storage
-5. For format options, TIFF 8-bit or 16-bit is recommended
+5. Pick Jpeg/tiff outpur
 6. Export and let the script handle the rest
 
 The Lua plugin requires the same dependencies as the command-line tool (Python environment with PyTorch, GMic, etc.), plus Darktable itself.
