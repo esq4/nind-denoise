@@ -90,11 +90,8 @@ The Lua script (`src/lua-scripts/nind_denoise_rl.lua`) needs to be copied to Dar
 %LOCALAPPDATA%\darktable\lua\
 ```
 
-If the `lua/` directory doesn't exist, create it. Then copy the script:
-
 ```bash
 # Example for Linux/macOS
-mkdir -p ~/.config/darktable/lua/
 cp src/lua-scripts/nind_denoise_rl.lua ~/.config/darktable/lua/
 ```
 
