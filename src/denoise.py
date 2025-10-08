@@ -139,9 +139,10 @@ def clone_exif(src_file: pathlib.Path, dst_file: pathlib.Path, verbose=False) ->
         print(f"Copied EXIF from {src_file} to {dst_file}")
 
 
-def read_config(
-    config_path="./src/config/operations.yaml", _nightmode=False, verbose=False
-) -> dict:
+def read_config(config_path=None, _nightmode=False, verbose=False) -> dict:
+    if config_path is None:
+        # Use path relative to this script's location
+        config_path = pathlib.Path(__file__).parent / "config" / "operations.yaml"
     """
     Reads a configuration file and optionally modifies it for night mode.
 
@@ -395,12 +396,16 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
         if output_dir.suffix != ""
         else (output_dir / _input_path.name).with_suffix(output_extension)
     )
+
+    # Ensure parent directory exists for output files
+    outpath.parent.mkdir(parents=True, exist_ok=True)
+
     input_xmp = (
         pathlib.Path(_args["--sidecar"])
         if _args.get("--sidecar")
         else _input_path.with_suffix(_input_path.suffix + ".xmp")
     )
-    sigma = int(_args["--sigma"]) if _args.get("--sigma") else 1
+    sigma = float(_args["--sigma"]) if _args.get("--sigma") else 1.0
     quality = _args["--quality"] if _args.get("--quality") else "90"
     iteration = _args["--iterations"] if _args.get("--iterations") else "10"
     verbose = _args["--verbose"] if _args.get("--verbose") else False
@@ -466,11 +471,15 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
                 _input_path,
                 input_xmp.with_suffix(".s1.xmp"),
                 stage_one_output_filepath.name,
+                "--icc-intent",
+                "PERCEPTUAL",
+                "--icc-type",
+                "SRGB",
                 "--apply-custom-presets",
                 "false",
                 "--core",
                 "--conf",
-                "plugins/imageio/format/tiff/bpp=32",
+                "plugins/imageio/format/tiff/bpp=16",
             ],
             cwd=outpath.parent,
             check=True,
@@ -491,21 +500,23 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
         os.remove(stage_one_denoised_filepath)
 
     model_config = config["models"]["nind_generator_650.pt"]
-    if not pathlib.Path(model_config["path"]).is_file():
+    # Make model path absolute relative to this script
+    model_path = pathlib.Path(__file__).parent / model_config["path"]
+    if not model_path.is_file():
         import requests
 
         requests.get(
             "https://f005.backblazeb2.com/file/modelzoo/nind/generator_650.pt",
-            model_config["path"],
+            str(model_path),
         )
     subprocess.run(
         [
             sys.executable,
-            pathlib.Path("src/nind_denoise/denoise_image.py").resolve(),
+            pathlib.Path(__file__).parent / "nind_denoise" / "denoise_image.py",
             "--network",
             "UtNet",
             "--model_path",
-            model_config["path"],
+            str(model_path),
             "--input",
             stage_one_output_filepath,
             "--output",
