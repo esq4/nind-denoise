@@ -9,7 +9,7 @@ Usage:
     denoise.py [ -o <outpath> | --output-path=<outpath> ] [-e <e> | --extension=<e> ]
                 [ -d <darktable> | --dt=<darktable> ] [-g <gmic> | --gmic=<gmic> ] [ -q <q> | --quality=<q> ]
                 [ --nightmode ] [ --no_deblur ] [ --debug ] [ --sigma=<sigma> ] [ --iterations=<iter> ]
-                [ -v | --verbose ] [ --tiff-input ] [ --sidecar=<sidecar> ] [--copy_num=<N>] <raw_image>
+                [ -v | --verbose ] [ --tiff-input ] [ --sidecar=<sidecar> ] [--copy_num=<N>] [--height=<height>]  <raw_image>
     denoise.py (help | -h | --help)
     denoise.py --version
 
@@ -28,6 +28,7 @@ Options:
   --sigma=<sigma>                       sigma to use for RL-deblur. Acceptable values are ....? [default: 1].
   --iterations=<iter>                   Number of iterations to perform during RL-deblur. Suggest keeping this to ...? [default: 10].
   --copy_num=<N>                        Image copy number
+  --height=<height>                     Max height
 
   -v --verbose
   --version                             Show version.
@@ -548,6 +549,8 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     # ========== invoke darktable-cli with second stage operations==========
     if rldeblur and stage_two_output_filepath.is_file():
         stage_two_output_filepath.unlink()  # delete target of s2 if there is a file there already
+    height = _args['--height'] if _args.get('--height') else "0"
+    width = "100000" if _args.get('--height') else "0"
     subprocess.run(
         [
             cmd_darktable,
@@ -558,8 +561,10 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
             "PERCEPTUAL",
             "--icc-type",
             "SRGB",
-            "--apply-custom-presets",
-            "false",
+            "--apply-custom-presets", "false",
+            '--upscale', '1',
+            '--height', height,
+            '--width', width,
             "--core",
             "--conf",
             "plugins/imageio/format/tiff/bpp=16",
