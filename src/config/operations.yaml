@@ -4,6 +4,7 @@ operations:
   - colorin
   - colorout
   - demosaic
+  - exposure
   - flip
   - gamma
   - highlights
@@ -25,7 +26,6 @@ operations:
   - denoiseprofile
   - diffuse
   - dither
-  - exposure
   - filmicrgb
   - flip
   - gamma
