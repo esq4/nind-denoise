@@ -9,7 +9,7 @@ Usage:
     denoise.py [ -o <outpath> | --output-path=<outpath> ] [-e <e> | --extension=<e> ]
                 [ -d <darktable> | --dt=<darktable> ] [-g <gmic> | --gmic=<gmic> ] [ -q <q> | --quality=<q> ]
                 [ --nightmode ] [ --no_deblur ] [ --debug ] [ --sigma=<sigma> ] [ --iterations=<iter> ]
-                [ -v | --verbose ] [ --tiff-input ] [ --sidecar=<sidecar> ] <raw_image>
+                [ -v | --verbose ] [ --tiff-input ] [ --sidecar=<sidecar> ] [--copy_num=<N>] [--height=<height>]  <raw_image>
     denoise.py (help | -h | --help)
     denoise.py --version
 
@@ -27,6 +27,8 @@ Options:
   --sidecar=<sidecar>                   Path to the .xmp sidecar. Normally autodiscovered; This is for use by the lua plugin
   --sigma=<sigma>                       sigma to use for RL-deblur. Acceptable values are ....? [default: 1].
   --iterations=<iter>                   Number of iterations to perform during RL-deblur. Suggest keeping this to ...? [default: 10].
+  --copy_num=<N>                        Image copy number
+  --height=<height>                     Max height
 
   -v --verbose
   --version                             Show version.
@@ -400,11 +402,23 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     # Ensure parent directory exists for output files
     outpath.parent.mkdir(parents=True, exist_ok=True)
 
+    
+    if _args.get('--copy_num'):
+        copy_number =  ""
+        if 0 < int(_args.get('--copy_num')) < 10:
+            copy_number = "_0" + _args['--copy_num']
+        elif 9 < int(_args.get('--copy_num')) < 100:
+            copy_number = "_" + _args['--copy_num']
+        input_xmp = _input_path.with_stem(_input_path.stem + copy_number).with_suffix(_input_path.suffix + '.xmp')
+    else:
+        input_xmp = _input_path.with_suffix(_input_path.suffix + '.xmp')
     input_xmp = (
         pathlib.Path(_args["--sidecar"])
         if _args.get("--sidecar")
-        else _input_path.with_suffix(_input_path.suffix + ".xmp")
+        else input_xmp
     )
+    print(input_xmp)
+
     sigma = float(_args["--sigma"]) if _args.get("--sigma") else 1.0
     quality = _args["--quality"] if _args.get("--quality") else "90"
     iteration = _args["--iterations"] if _args.get("--iterations") else "10"
@@ -536,6 +550,8 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     # ========== invoke darktable-cli with second stage operations==========
     if rldeblur and stage_two_output_filepath.is_file():
         stage_two_output_filepath.unlink()  # delete target of s2 if there is a file there already
+    height = _args['--height'] if _args.get('--height') else "0"
+    width = "100000" if _args.get('--height') else "0"
     subprocess.run(
         [
             cmd_darktable,
@@ -546,8 +562,10 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
             "PERCEPTUAL",
             "--icc-type",
             "SRGB",
-            "--apply-custom-presets",
-            "false",
+            "--apply-custom-presets", "false",
+            '--upscale', '1',
+            '--height', height,
+            '--width', width,
             "--core",
             "--conf",
             "plugins/imageio/format/tiff/bpp=16",
