@@ -80,7 +80,7 @@ local function migrate_pref(key, type, default)
     return dt.preferences.read(MODULE_NAME, key, type)
   end)
 
-  if success then
+  if success and value ~= nil and value ~= "" then
     return value
   end
   return default
@@ -733,8 +733,9 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     new_name = df.create_unique_filename(new_name)
 
     -- Step 3: Build denoise.py command - pass full filepath
-    local denoise_cmd = extra.nind_denoise.." --tiff-input"..
-            " -o " .. escape_fn(new_name) ..
+    local denoise_cmd = extra.nind_denoise..
+                       " --tiff-input"..
+                       " -o " .. escape_fn(new_name) ..
                        " --sidecar "..escape_fn(sidecar)..
                        " --extension "..file_ext..
                        " --quality "..extra.jpg_quality_str
@@ -770,7 +771,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     end
 
     if not file_exists(new_name) then
-        dt.log_error(_("Python output not found: ") .. new_name)
+      dt.log_error(_("Python output not found: ") .. new_name)
       return false
     end
 
@@ -831,8 +832,8 @@ local storage_widget = dt.new_widget("box") {
   NDRL.import_to_dt_switch,
   dt.new_widget("section_label") { label = _("Environment Setup") },
   NDRL.env_status,
-  NDRL.setup_button,
-  NDRL.clean_button,
+--  NDRL.setup_button,
+--  NDRL.clean_button,
   dt.new_widget("check_button") {
     label = _("Debug Mode"),
     tooltip = _("Enable verbose logging and stack traces"),
@@ -852,7 +853,7 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
   if dt.configuration.running_os == "windows" then
     activate_cmd = "call \"" .. extra.denoise_dir .. "\\.venv\\Scripts\\activate.bat\" && "
   else
-    activate_cmd = "source \"" .. extra.denoise_dir .. "/.venv/bin/activate\" && "
+    activate_cmd = ". \"" .. extra.denoise_dir .. "/.venv/bin/activate\" && "
   end
 
   extra.nind_denoise  = activate_cmd .. "python3 \"" .. extra.denoise_dir .. "/src/denoise.py\""
