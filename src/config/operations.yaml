@@ -4,6 +4,7 @@ operations:
   - colorin
   - colorout
   - demosaic
+  - enlargecanvas
   - exposure
   - flip
   - gamma
@@ -11,6 +12,7 @@ operations:
   - hotpixels
   - mask_manager
   - rawprepare
+  - retouch
   - temperature
   second_stage:
   - ashift
