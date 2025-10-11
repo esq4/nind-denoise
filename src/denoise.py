@@ -402,11 +402,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     # Ensure parent directory exists for output files
     outpath.parent.mkdir(parents=True, exist_ok=True)
 
-    # input_xmp = (
-    #     pathlib.Path(_args["--sidecar"])
-    #     if _args.get("--sidecar")
-    #     else _input_path.with_suffix(_input_path.suffix + ".xmp")
-    # )
+    
     if _args.get('--copy_num'):
         copy_number =  ""
         if 0 < int(_args.get('--copy_num')) < 10:
@@ -416,6 +412,11 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
         input_xmp = _input_path.with_stem(_input_path.stem + copy_number).with_suffix(_input_path.suffix + '.xmp')
     else:
         input_xmp = _input_path.with_suffix(_input_path.suffix + '.xmp')
+    input_xmp = (
+        pathlib.Path(_args["--sidecar"])
+        if _args.get('--sidecar')
+        else input_xmp
+    )
     print(input_xmp)
 
     sigma = float(_args["--sigma"]) if _args.get("--sigma") else 1.0
