@@ -227,6 +227,13 @@ def parse_darktable_history_stack(
             op.extract()  # remove the op completely
             if verbose:
                 print("--removed: ", op["darktable:operation"])
+        elif (
+            op["darktable:operation"] not in operations["second_stage"]
+            and op["darktable:operation"] not in operations["first_stage"]
+        ):
+            op.extract()  # remove the op completely
+            if verbose:
+                print("--removed: ", op["darktable:operation"])
         elif op["darktable:operation"] in operations["overrides"]:
             for key, val in operations["overrides"][op["darktable:operation"]].items():
                 op[key] = val
