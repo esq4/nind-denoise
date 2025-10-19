@@ -625,6 +625,36 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
         ]:
             intermediate_file.unlink(missing_ok=True)
 
+    temp_jpeg_filepath = pathlib.Path(outpath.parent, outpath.stem + "_temp" + ".jpg")
+    subprocess.run(
+        [
+            cmd_darktable,
+            _input_path,
+            input_xmp,
+            temp_jpeg_filepath,
+        ],
+        cwd=outpath.parent,
+        check=True,
+    )
+
+    subprocess.run(
+        [
+            "exiftool",
+            "-tagsfromfile",
+            temp_jpeg_filepath,
+            "-CreatorTool",
+            "-Rating",
+            "-Subject",
+            outpath.name,
+        ],
+        cwd=outpath.parent,
+        check=True,
+    )
+
+    outpath_original = pathlib.Path(temp_jpeg_filepath.parent, outpath.stem + ".jpg_original")
+    if os.path.exists(outpath_original):
+        os.remove(outpath_original)
+    temp_jpeg_filepath.unlink(missing_ok=True)
 
 if __name__ == "__main__":
     args = docopt(__doc__, version="__version__")
