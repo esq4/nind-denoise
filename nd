@@ -13,5 +13,7 @@ if [ ! $num ] ; then
   num="0"
 fi
 source /home/a/nind-denoise/.venv/bin/activate
+mkdir /dev/shm/dt/
+cp /home/a/.config/darktable/darktablerc /home/a/.config/darktable/data.db /dev/shm/dt/
 python3 /home/a/nind-denoise/src/denoise.py --copy_num=$num -q 97 -o /media/a/photos/foto/0out/ $praw
-
+rm -rf  /dev/shm/dt

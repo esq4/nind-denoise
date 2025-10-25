@@ -615,16 +615,6 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
 
     clone_exif(stage_one_output_filepath, outpath, verbose=verbose)
 
-    if not _args.get("--debug"):
-        for intermediate_file in [
-            stage_one_output_filepath,
-            stage_one_denoised_filepath,
-            stage_two_output_filepath,
-            input_xmp.with_suffix(".s1.xmp"),
-            input_xmp.with_suffix(".s2.xmp"),
-        ]:
-            intermediate_file.unlink(missing_ok=True)
-
     temp_jpeg_filepath = pathlib.Path(outpath.parent, outpath.stem + "_temp" + ".jpg")
     subprocess.run(
         [
@@ -632,6 +622,9 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
             _input_path,
             input_xmp,
             temp_jpeg_filepath,
+            "--apply-custom-presets", "true",
+            "--core",
+            "--configdir", "/dev/shm/dt/",
         ],
         cwd=outpath.parent,
         check=True,
@@ -652,9 +645,18 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     )
 
     outpath_original = pathlib.Path(temp_jpeg_filepath.parent, outpath.stem + ".jpg_original")
-    if os.path.exists(outpath_original):
-        os.remove(outpath_original)
+    outpath_original.unlink(missing_ok=True)
     temp_jpeg_filepath.unlink(missing_ok=True)
+
+    if not _args.get("--debug"):
+        for intermediate_file in [
+            stage_one_output_filepath,
+            stage_one_denoised_filepath,
+            stage_two_output_filepath,
+            input_xmp.with_suffix(".s1.xmp"),
+            input_xmp.with_suffix(".s2.xmp"),
+        ]:
+            intermediate_file.unlink(missing_ok=True)
 
 if __name__ == "__main__":
     args = docopt(__doc__, version="__version__")
