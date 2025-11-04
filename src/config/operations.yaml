@@ -1,5 +1,6 @@
 operations:
   first_stage:
+  - agx
   - channelmixerrgb
   - colorin
   - colorout
