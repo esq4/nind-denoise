@@ -1,6 +1,5 @@
 operations:
   first_stage:
-  - agx
   - channelmixerrgb
   - colorin
   - colorout
@@ -16,6 +15,7 @@ operations:
   - retouch
   - temperature
   second_stage:
+  - agx
   - ashift
   - bilat
   - blurs
