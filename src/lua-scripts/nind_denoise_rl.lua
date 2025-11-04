@@ -96,7 +96,7 @@ local function find_gmic()
     "/opt/local/bin/gmic",
     (os.getenv("HOME") or "") .. "/.local/bin/gmic"
   }
-  
+
   for _, path in ipairs(gmic_paths) do
     local f = io.open(path, "r")
     if f then
@@ -104,7 +104,7 @@ local function find_gmic()
       return path
     end
   end
-  
+
   -- Try using 'which' command as fallback
   local handle = io.popen("which gmic 2>/dev/null")
   if handle then
@@ -114,7 +114,7 @@ local function find_gmic()
       return result:gsub("%s+$", "")  -- trim whitespace
     end
   end
-  
+
   return "gmic"  -- fallback to just the command name, hoping it's in PATH
 end
 
@@ -562,18 +562,18 @@ local function create_unique_filename(filepath)
   if not file_exists(filepath) then
     return filepath
   end
-  
+
   local path = get_path(filepath)
   local basename = get_basename(filepath)
   local ext = get_filetype(filepath)
-  
+
   local counter = 1
   local new_path
   repeat
     new_path = path .. PS .. basename .. "_" .. counter .. "." .. ext
     counter = counter + 1
   until not file_exists(new_path)
-  
+
   return new_path
 end
 
@@ -697,7 +697,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     end
 
     local escape_fn = dtsys.escape_shell_arg or escape_shell_arg
-    
+
     -- Step 1: Ensure XMP sidecar exists (create minimal one if needed)
     if not file_exists(sidecar) then
       dt.print(_("Warning: No XMP sidecar found, creating minimal XMP for denoise compatibility"))
@@ -717,7 +717,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
   </rdf:Description>
  </rdf:RDF>
 </x:xmpmeta>]]
-      
+
       local xmp_file = io.open(sidecar, "w")
       if xmp_file then
         xmp_file:write(minimal_xmp)
@@ -734,12 +734,11 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
 
     -- Step 3: Build denoise.py command - pass full filepath
     local denoise_cmd = extra.nind_denoise..
-                       " --tiff-input"..
                        " -o " .. escape_fn(new_name) ..
                        " --sidecar "..escape_fn(sidecar)..
                        " --extension "..file_ext..
                        " --quality "..extra.jpg_quality_str
-    
+
     -- Add RL deblur parameters if enabled
     if extra.rl_deblur_enabled then
       denoise_cmd = denoise_cmd.." --sigma="..extra.sigma_str..
@@ -747,12 +746,12 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     else
       denoise_cmd = denoise_cmd.." --no_deblur"
     end
-    
+
     -- Add input file
-    denoise_cmd = denoise_cmd.." "..escape_fn(temp_name)
-    
+    denoise_cmd = denoise_cmd.." "..escape_fn(image.path.."/"..image.filename)
+
     dt.print_log("Denoise command: "..denoise_cmd)
-    
+
     local success, result = xpcall(function()
       return dtsys.external_command(denoise_cmd)
     end, handle_command_error)
@@ -783,7 +782,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
     local success, imported_or_err = pcall(function()
       return dt.database.import(new_name)
     end)
-    
+
     if success then
       local imported_img = imported_or_err
       -- Group with original image
@@ -791,7 +790,7 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
         imported_img:group_with(image)
         image:make_group_leader()
       end)
-      
+
       if group_success then
         dt.print(_("Imported and grouped: ")..new_name)
       else

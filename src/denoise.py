@@ -662,6 +662,20 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
             intermediate_file.unlink(missing_ok=True)
 
 if __name__ == "__main__":
+
+    subprocess.run(
+        [
+            "mkdir", "/dev/shm/dt/",
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "cp", "/home/a/.config/darktable/darktablerc", "/home/a/.config/darktable/data.db", "/dev/shm/dt/",
+        ],
+        check=True,
+    )
+
     args = docopt(__doc__, version="__version__")
     input_path = pathlib.Path(args["<raw_image>"])
     if input_path.is_dir():
@@ -675,3 +689,10 @@ if __name__ == "__main__":
                 denoise_file(dict(args), _input_path=file)
     else:
         denoise_file(dict(args), _input_path=input_path)
+
+    subprocess.run(
+        [
+            "rm", "-rf", "/dev/shm/dt",
+        ],
+        check=True,
+    )
