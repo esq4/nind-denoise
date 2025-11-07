@@ -130,7 +130,7 @@ NDRL.conf = {
   output_format = {value = migrate_pref("output_format", "integer", 1)},
   sigma = {value = migrate_pref("sigma", "string", "1")},
   iterations = {value = migrate_pref("iterations", "string", "20")},
-  jpg_quality = {value = migrate_pref("jpg_quality", "string", "95")},
+  jpg_quality = {value = migrate_pref("jpg_quality", "string", "97")},
   rl_deblur_enabled = {value = migrate_pref("rl_deblur_enabled", "bool", false)},
   debug_mode = {value = migrate_pref("debug_mode", "bool", false)},
   import_to_dt = { value = migrate_pref("import_to_dt", "bool", true) }
@@ -223,10 +223,9 @@ NDRL.output_folder_path = dt.new_widget("entry") {
 NDRL.output_folder_selector = dt.new_widget("file_chooser_button") {
     title = _("select output folder"),
     tooltip = _("select output folder"),
-    value = NDRL.conf.output_path.value,
     is_directory = true,
     changed_callback = function(self)
-      NDRL.conf.output_path.value = self.value
+      NDRL.output_folder_path.text = self.value
     end
   }
 
@@ -254,12 +253,12 @@ NDRL.jpg_quality_slider = dt.new_widget("slider") {
     value = tonumber(NDRL.conf.jpg_quality.value)
   }
 
-NDRL.rl_deblur_switch = dt.new_widget("check_button") {
+NDRL.rl_deblur_enabled = dt.new_widget("check_button") {
     label = _("apply RL deblur"),
     tooltip = _("enable Richardson-Lucy sharpening"),
     value = NDRL.conf.rl_deblur_enabled.value,
     clicked_callback = function(self)
-      NDRL.conf.rl_deblur_enabled.value = self.value
+      dt.preferences.write(MODULE_NAME, "rl_deblur_enabled", "bool", self.value)
     end
   }
 
@@ -270,7 +269,7 @@ NDRL.sigma_slider = dt.new_widget("slider") {
     soft_max = 2.0,
     hard_min = 0.0,
     hard_max = 3.0,
-    step = 0.05,
+    step = 0.01,
     digits = 2,
     value = tonumber(NDRL.conf.sigma.value),
     sensitive = NDRL.conf.rl_deblur_enabled.value
@@ -295,6 +294,18 @@ NDRL.import_to_dt_switch = dt.new_widget("check_button") {
     value = NDRL.conf.import_to_dt.value,
     clicked_callback = function(self)
       NDRL.conf.import_to_dt.value = self.value
+    end
+  }
+
+-- Save settings button
+NDRL.save_settings_button = dt.new_widget("button") {
+    label = _("Save settings"),
+    tooltip = _("Save nind-denoise settings"),
+    clicked_callback = function(self)
+      dt.preferences.write(MODULE_NAME, "output_path", "string", NDRL.output_folder_path.text)
+      dt.preferences.write(MODULE_NAME, "sigma", "float", NDRL.sigma_slider.value)
+      dt.preferences.write(MODULE_NAME, "iterations", "float", NDRL.iterations_slider.value)
+      dt.preferences.write(MODULE_NAME, "jpg_quality", "float", NDRL.jpg_quality_slider.value)
     end
   }
 
@@ -737,7 +748,8 @@ local function store(storage, image, img_format, temp_name, img_num, total, hq, 
                        " -o " .. escape_fn(new_name) ..
                        " --sidecar "..escape_fn(sidecar)..
                        " --extension "..file_ext..
-                       " --quality "..extra.jpg_quality_str
+                       " --quality "..extra.jpg_quality_str..
+                       " --lua_temp_image "..escape_fn(temp_name)
 
     -- Add RL deblur parameters if enabled
     if extra.rl_deblur_enabled then
@@ -820,7 +832,7 @@ end
 local storage_widget = dt.new_widget("box") {
   orientation = "vertical",
   dt.new_widget("section_label") { label = _("Processing Options") },
-  NDRL.rl_deblur_switch,
+  NDRL.rl_deblur_enabled,
   NDRL.sigma_slider,
   NDRL.iterations_slider,
   dt.new_widget("section_label") { label = _("Output Settings") },
@@ -829,7 +841,7 @@ local storage_widget = dt.new_widget("box") {
   NDRL.output_format,
   NDRL.jpg_quality_slider,
   NDRL.import_to_dt_switch,
-  dt.new_widget("section_label") { label = _("Environment Setup") },
+--  dt.new_widget("section_label") { label = _("Environment Setup") },
   NDRL.env_status,
 --  NDRL.setup_button,
 --  NDRL.clean_button,
@@ -839,7 +851,9 @@ local storage_widget = dt.new_widget("box") {
     clicked_callback = function(self)
       NDRL.conf.debug_mode.value = self.value
     end
-  }
+  },
+  NDRL.save_settings_button,
+  dt.new_widget("section_label") {  }
 }
 
 -- Setup export
@@ -872,7 +886,7 @@ local function initialize(storage, img_format, image_table, high_quality, extra)
   extra.output_format = NDRL.output_format.selected
 
   extra.rl_deblur_enabled   = NDRL.conf.rl_deblur_enabled.value
-  extra.sigma_str           = string.format("%.0f", NDRL.sigma_slider.value)
+  extra.sigma_str           = string.format("%.2f", NDRL.sigma_slider.value)
   extra.iterations_str      = string.format("%.0f", NDRL.iterations_slider.value)
   extra.jpg_quality_str     = string.format("%.0f", NDRL.jpg_quality_slider.value)
   extra.import_to_dt        = NDRL.conf.import_to_dt.value
@@ -901,11 +915,16 @@ dt.preferences.register(MODULE_NAME, "debug_mode", "bool",
  _ ("Enable verbose logging and stack traces"), false)
 
 -- Initialize UI from conf keys
-NDRL.output_folder_path.text = NDRL.conf.output_path.value
-NDRL.output_format.selected = NDRL.conf.output_format.value
-NDRL.jpg_quality_slider.value = tonumber(NDRL.conf.jpg_quality.value)
-NDRL.rl_deblur_switch.value = NDRL.conf.rl_deblur_enabled.value
-NDRL.sigma_slider.value = tonumber(NDRL.conf.sigma.value)
+NDRL.output_folder_path.text = dt.preferences.read(MODULE_NAME, "output_path", "string")
+if NDRL.output_format == nil then
+  NDRL.output_format.value = ""
+else
+  NDRL.output_format.value = NDRL.conf.output_format.value
+end
+--NDRL.jpg_quality_slider.value = tonumber(NDRL.conf.jpg_quality.value)
+--NDRL.rl_deblur_enabled.value = dt.preferences.read(MODULE_NAME, "rl_deblur_enabled", "bool")
+--NDRL.sigma_slider.value = tonumber(NDRL.conf.sigma.value)
+NDRL.sigma_slider.value = dt.preferences.read(MODULE_NAME, "sigma", "float")
 NDRL.iterations_slider.value = tonumber(NDRL.conf.iterations.value)
 NDRL.import_to_dt_switch.value = NDRL.conf.import_to_dt.value
 output_format_changed()

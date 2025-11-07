@@ -9,7 +9,8 @@ Usage:
     denoise.py [ -o <outpath> | --output-path=<outpath> ] [-e <e> | --extension=<e> ]
                 [ -d <darktable> | --dt=<darktable> ] [-g <gmic> | --gmic=<gmic> ] [ -q <q> | --quality=<q> ]
                 [ --nightmode ] [ --no_deblur ] [ --debug ] [ --sigma=<sigma> ] [ --iterations=<iter> ]
-                [ -v | --verbose ] [ --tiff-input ] [ --sidecar=<sidecar> ] [--copy_num=<N>] [--height=<height>]  <raw_image>
+                [ -v | --verbose ] [ --tiff-input ] [ --sidecar=<sidecar> ] [--copy_num=<N>] [--height=<height>]
+                [--lua_temp_image=<lua_temp_image>] <raw_image>
     denoise.py (help | -h | --help)
     denoise.py --version
 
@@ -29,6 +30,7 @@ Options:
   --iterations=<iter>                   Number of iterations to perform during RL-deblur. Suggest keeping this to ...? [default: 10].
   --copy_num=<N>                        Image copy number
   --height=<height>                     Max height
+  --lua_temp_image=<lua_temp_image>     Using to get image size from lua script
 
   -v --verbose
   --version                             Show version.
@@ -425,8 +427,8 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
         else input_xmp
     )
     print(input_xmp)
-
-    sigma = float(_args["--sigma"]) if _args.get("--sigma") else 1.0
+    
+    sigma = float(_args["--sigma"].replace(",",".")) if _args.get("--sigma") else 1.0
     quality = _args["--quality"] if _args.get("--quality") else "90"
     iteration = _args["--iterations"] if _args.get("--iterations") else "10"
     verbose = _args["--verbose"] if _args.get("--verbose") else False
@@ -559,6 +561,16 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
         stage_two_output_filepath.unlink()  # delete target of s2 if there is a file there already
     height = _args['--height'] if _args.get('--height') else "0"
     width = "100000" if _args.get('--height') else "0"
+    if args["--lua_temp_image"]:
+        tmp_file = pathlib.Path(args["--lua_temp_image"])
+        tmp_image = exiv2.ImageFactory.open(str(tmp_file))
+        tmp_image.readMetadata()
+        tmp_image_data = tmp_image.exifData()
+        key = exiv2.ExifKey("Exif.Image.ImageWidth");
+        width = tmp_image_data.findKey(key).value();
+        key = exiv2.ExifKey("Exif.Image.ImageLength");
+        height = tmp_image_data.findKey(key).value();
+
     subprocess.run(
         [
             cmd_darktable,
@@ -571,8 +583,8 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
             "SRGB",
             "--apply-custom-presets", "false",
             '--upscale', '1',
-            '--height', height,
-            '--width', width,
+            '--height', str(height),
+            '--width', str(width),
             "--core",
             "--conf",
             "plugins/imageio/format/tiff/bpp=16",
@@ -665,7 +677,7 @@ if __name__ == "__main__":
 
     subprocess.run(
         [
-            "mkdir", "/dev/shm/dt/",
+            "mkdir", "-p", "/dev/shm/dt/",
         ],
         check=True,
     )
