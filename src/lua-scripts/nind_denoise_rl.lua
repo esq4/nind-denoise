@@ -470,7 +470,7 @@ local function build_substitution_list(image, sequence, datetime, username, pic_
     local eyear,emon,eday,ehour,emin,esec = string.match(image.exif_datetime_taken, "(%d-):(%d-):(%d-) (%d-):(%d-):(%d-)$")
     local replacements = {image.film,
                           image.path,
-                          df.get_filename(image.filename),
+                          df.get_basename(image.filename),
                           string.upper(df.get_filetype(image.filename)),
                           image.id,image.duplicate_index,
                           string.format("%04d", sequence),
