@@ -837,7 +837,7 @@ local storage_widget = dt.new_widget("box") {
   NDRL.iterations_slider,
   dt.new_widget("section_label") { label = _("Output Settings") },
   NDRL.output_folder_path,
-  NDRL.output_folder_selector,
+--  NDRL.output_folder_selector,
   NDRL.output_format,
   NDRL.jpg_quality_slider,
   NDRL.import_to_dt_switch,
