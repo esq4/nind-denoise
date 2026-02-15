@@ -627,6 +627,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     clone_exif(stage_one_output_filepath, outpath, verbose=verbose)
 
     temp_jpeg_filepath = pathlib.Path(outpath.parent, outpath.stem + "_temp" + ".jpg")
+    temp_jpeg_filepath = pathlib.Path("/dev/shm/dt/_temp.jpg")
     subprocess.run(
         [
             cmd_darktable,
@@ -658,7 +659,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
         check=True,
     )
 
-    outpath_original = pathlib.Path(temp_jpeg_filepath.parent, outpath.stem + ".jpg_original")
+    outpath_original = pathlib.Path(outpath.parent, outpath.stem + ".jpg_original")
     outpath_original.unlink(missing_ok=True)
     temp_jpeg_filepath.unlink(missing_ok=True)
 
