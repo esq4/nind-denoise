@@ -411,7 +411,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
     # Ensure parent directory exists for output files
     outpath.parent.mkdir(parents=True, exist_ok=True)
 
-    
+
     if _args.get('--copy_num'):
         copy_number =  ""
         if 0 < int(_args.get('--copy_num')) < 10:
@@ -427,16 +427,15 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
         else input_xmp
     )
     print(input_xmp)
-    
+
     sigma = float(_args["--sigma"].replace(",",".")) if _args.get("--sigma") else 1.0
     quality = _args["--quality"] if _args.get("--quality") else "90"
     iteration = _args["--iterations"] if _args.get("--iterations") else "10"
     verbose = _args["--verbose"] if _args.get("--verbose") else False
 
-    stage_one_output_filepath, stage_one_denoised_filepath = get_stage_filepaths(
-        outpath, 1
-    )
-    stage_two_output_filepath = get_stage_filepaths(outpath, 2)
+    stage_one_output_filepath = pathlib.Path("/dev/shm/dt/_s1.tif")
+    stage_one_denoised_filepath = pathlib.Path("/dev/shm/dt/_s1_denoised.tiff")
+    stage_two_output_filepath = pathlib.Path("/dev/shm/dt/_s2.tif")
 
     config = read_config(verbose=verbose)
     cmd_darktable, cmd_gmic = get_command_paths(_args)
@@ -493,7 +492,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
                 cmd_darktable,
                 _input_path,
                 input_xmp.with_suffix(".s1.xmp"),
-                stage_one_output_filepath.name,
+                stage_one_output_filepath,
                 "--icc-intent",
                 "PERCEPTUAL",
                 "--icc-type",
@@ -576,7 +575,7 @@ def denoise_file(_args: dict, _input_path: pathlib.Path):
             cmd_darktable,
             stage_one_denoised_filepath,  # image input
             input_xmp.with_suffix(".s2.xmp"),  # xmp input
-            stage_two_output_filepath.name,  # image output
+            stage_two_output_filepath,  # image output
             "--icc-intent",
             "PERCEPTUAL",
             "--icc-type",
@@ -708,3 +707,5 @@ if __name__ == "__main__":
         ],
         check=True,
     )
+
+
