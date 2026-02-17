@@ -39,7 +39,7 @@ from common.libs import np_imgops, pt_helpers, utilities
 import nn_common
 
 CS_UNET, UCS_UNET = 440, 320
-CS_UTNET, UCS_UTNET = 504, 480
+CS_UTNET, UCS_UTNET = 504, 380
 CS_UNK, UCS_UNK = 512, 448
 
 
