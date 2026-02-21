@@ -11,14 +11,16 @@ import sys
 from multiprocessing import cpu_count
 
 sys.path.append("..")
-from ..common.libs import utilities
+from common.libs import utilities
 
 CS = 256
 STRIDE = 192
-FS_DS_DPATH = os.path.join(os.getcwd(), "src", "nind_denoise", "datasets", "NIND")
-CROPPED_DS_DPATH = os.path.join(
+#FS_DS_DPATH = os.path.join(os.getcwd(), "src", "nind_denoise", "datasets", "NIND")
+FS_DS_DPATH = os.path.join("/media", "a", "vxd1", "datasets", "NIND")
+"""CROPPED_DS_DPATH = os.path.join(
     os.getcwd(), "src", "nind_denoise", "datasets", "cropped"
-)  # no longer used
+)  # no longer used """
+CROPPED_DS_DPATH = os.path.join("/media", "a", "vxd1", "datasets", "cropped")  # no longer used
 
 parser = argparse.ArgumentParser(
     description="Image cropper with overlap (relies on crop_img.sh)"
@@ -83,6 +85,7 @@ if os.path.isdir(os.path.join(args.dsdir, sets[0])):
                 os.rename(inpath, inpath.replace(oldval, isoval))
                 inpath = newpath
             isovals.append(isoval)
+            print({resdir}, {aset}, {isoval})
             try:
                 outdir = os.path.join(resdir, aset, isoval)
             except TypeError as e:
@@ -91,7 +94,7 @@ if os.path.isdir(os.path.join(args.dsdir, sets[0])):
             todolist.append(
                 [
                     "bash",
-                    os.path.join("tools", "crop_img.sh"),
+                    os.path.join("crop_img.sh"),
                     str(args.cs),
                     str(args.stride),
                     inpath,
@@ -106,7 +109,7 @@ else:
         todolist.append(
             [
                 "bash",
-                os.path.join("tools", "crop_img.sh"),
+                os.path.join("crop_img.sh"),
                 str(args.cs),
                 str(args.stride),
                 inpath,
