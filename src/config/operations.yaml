@@ -32,6 +32,7 @@ operations:
   - filmicrgb
   - flip
   - gamma
+  - grain
   - hazeremoval
   - invert
   - lens
