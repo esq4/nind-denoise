@@ -28,6 +28,8 @@ mkdir -p "${OUTDIR}"
 NXCROPS=$((${RES[0]}/$UCS+1))
 NYCROPS=$((${RES[1]}/$UCS+1))
 let CURX=CURY=0
+TPATH=/dev/shm/ci$OUTDIR
+mkdir -p ${TPATH}
 
 while ((${CURY}<${NYCROPS}))
 do
@@ -60,7 +62,8 @@ do
     then
         CUCS=$(($CUCS<($YCS-($CS-$UCS)/2)?$CUCS:($YCS-($CS-$UCS)/2)))
     fi
-    CPATH="${OUTDIR}/${BN}_${CURX}_${CURY}_${CUCS}.${EXT}"
+    #CPATH="${OUTDIR}/${BN}_${CURX}_${CURY}_${CUCS}.${EXT}"
+    CPATH="${TPATH}/${BN}_${CURX}_${CURY}_${CUCS}.${EXT}"
 	if [ ! -f "${CPATH}" ] && [ $XBEG -ge 0 ] && [ $YBEG -ge 0 ] && [ $CUCS -ge $UCS ] && [ $YCS -eq $CS ] && [ $XCS -eq $CS ]
 	then
 		if [ "$EXT" = "jpg" ]; then
@@ -80,3 +83,6 @@ do
 	    ((CURY++))
 	fi
 done
+
+cp -r ${TPATH} ${OUTDIR}
+rm -rf "${TPATH}"
