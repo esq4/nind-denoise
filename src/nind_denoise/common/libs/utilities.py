@@ -4,6 +4,7 @@ import statistics
 import shutil
 import subprocess
 import hashlib
+import csv
 
 def checksum(fpath, htype='sha1'):
     if htype == 'sha1':
