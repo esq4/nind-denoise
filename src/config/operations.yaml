@@ -1,6 +1,7 @@
 operations:
   first_stage:
   - channelmixerrgb
+  - blurs
   - colorin
   - colorout
   - demosaic
@@ -14,17 +15,18 @@ operations:
   - rawprepare
   - retouch
   - temperature
+  - vignette
   second_stage:
   - agx
   - ashift
   - bilat
-  - blurs
   - borders
   - colorbalancergb
   - colorin
   - colorout
   - crop
   - cacorrectrgb
+  - colorequal
   - clahe
   - denoiseprofile
   - diffuse
@@ -57,7 +59,6 @@ operations:
   - toneequal
   - velvia
   - vibrance
-  - vignette
   - watermark
   - zonesystem
   overrides:
