@@ -30,7 +30,7 @@ parser.add_argument('--overwrite', action='store_true', help='Overwrite existing
 args,_ = parser.parse_known_args()
 
 test_reserve_str = utilities.get_leaf(args.test_reserve[0]) # assumes yaml file
-assert test_reserve_str.endswith('.yaml')
+#assert test_reserve_str.endswith('.yaml')
 args.test_reserve = nn_common.get_test_reserve_list(args.test_reserve)
 # with open(args.test_reserve_yaml, 'r') as fp:
 #     test_sets = yaml.safe_load(fp)
@@ -39,12 +39,17 @@ args.test_reserve = nn_common.get_test_reserve_list(args.test_reserve)
 crops_paths = []  # list of baseline-noisy tuples
 train_data_dnames = []
 for train_data_dpath in args.train_data:
+    print(f'путь - - - {train_data_dpath}')
     train_data_dnames.append(os.path.basename(os.path.relpath(train_data_dpath)))
+    print(f'путь - - - - {train_data_dnames}')
     for set_name in os.listdir(train_data_dpath):
-        if set_name not in args.test_reserve:
-            continue
+        print(f'путь - - - - - {set_name}')
+        #if set_name not in args.test_reserve:
+        #    continue
         set_dpath = os.path.join(train_data_dpath, set_name)
+        print(f'путь - - - - -- {set_dpath}')
         ISOs = os.listdir(set_dpath)
+        print(f'путь - - - - - - {ISOs}')
         base_isos, isos = dataset_torch_3.sortISOs(ISOs)
         for base_iso in base_isos:
             base_iso_dpath = os.path.join(set_dpath, base_iso)
@@ -70,7 +75,7 @@ for acrop in chosen_crops:
     assert os.path.isfile(acrop[1]), acrop
 
 # write to yaml
-with open(res_fpath, 'w') as fp:
+with open(res_fpath, 'x') as fp:
     yaml.dump(chosen_crops, fp)
 
 print(f'{chosen_crops=} written to {res_fpath=}')
